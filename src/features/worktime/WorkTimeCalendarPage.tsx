@@ -5,9 +5,11 @@ import { MonthNav } from '@/components/common/MonthNav';
 import { useToast } from '@/components/common/Toast';
 import { workTimeService } from '@/services/workTimeService';
 import { WorkTimeEntryModal } from '@/features/worktime/WorkTimeEntryModal';
+import { WorkTimeMonthCalendar } from '@/features/worktime/WorkTimeMonthCalendar';
 import { MyPayrollCard } from '@/features/payroll/MyPayrollCard';
-import { getMonthDates, todayStr, parseDate, WEEKDAY_LABELS_KO } from '@/utils/date';
-import { minutesToCompactHourText, minutesToHourText } from '@/utils/time';
+import { getMonthDates, todayStr } from '@/utils/date';
+import { minutesToHourText } from '@/utils/time';
+import { scheduleService } from '@/services/scheduleService';
 import { Clock3, Coffee, Timer } from 'lucide-react';
 
 export function WorkTimeCalendarPage({ employeeId }: { employeeId: string }) {
@@ -20,10 +22,17 @@ export function WorkTimeCalendarPage({ employeeId }: { employeeId: string }) {
 
   const dates = useMemo(() => getMonthDates(year, month), [year, month]);
   const [records, setRecords] = useState<Awaited<ReturnType<typeof workTimeService.listByEmployeeAndMonth>>>([]);
+  const [shifts, setShifts] = useState<Awaited<ReturnType<typeof scheduleService.getShiftsInRange>>>([]);
 
   useEffect(() => {
-    workTimeService.listByEmployeeAndMonth(employeeId, year, month).then(setRecords);
-  }, [employeeId, year, month, refreshKey]);
+    Promise.all([
+      workTimeService.listByEmployeeAndMonth(employeeId, year, month),
+      scheduleService.getShiftsInRange(dates[0], dates[dates.length - 1]),
+    ]).then(([nextRecords, allShifts]) => {
+      setRecords(nextRecords);
+      setShifts(allShifts.filter((shift) => shift.employeeId === employeeId));
+    });
+  }, [dates, employeeId, year, month, refreshKey]);
 
   const recordOf = (d: string) => records.find((r) => r.date === d);
 
@@ -33,9 +42,16 @@ export function WorkTimeCalendarPage({ employeeId }: { employeeId: string }) {
   const todayRecord = recordOf(todayStr());
   const isClockedIn = !!todayRecord?.clockIn;
   const isClockedOut = !!todayRecord?.clockOut;
+  const isScheduledToday = shifts.some(
+    (shift) => shift.employeeId === employeeId && shift.date === todayStr() && shift.status === 'working'
+  );
 
 
   const handleClockIn = async () => {
+    if (!isScheduledToday) {
+      showToast('오늘은 휴무입니다. 휴무일은 근무시간을 입력할 수 없습니다.', 'error');
+      return;
+    }
     await workTimeService.clockIn(employeeId);
     showToast('출근 처리되었습니다.');
     setRefreshKey((k) => k + 1);
@@ -51,10 +67,6 @@ export function WorkTimeCalendarPage({ employeeId }: { employeeId: string }) {
     setRefreshKey((k) => k + 1);
   };
 
-  // 달력 정렬을 위한 앞쪽 빈칸 수 (월요일 시작)
-  const firstDay = parseDate(dates[0]).getDay();
-  const leadingBlanks = firstDay === 0 ? 6 : firstDay - 1;
-
   return (
     <div className="space-y-4">
       <Card className="hero-surface flex items-center gap-4 border-0 ring-0">
@@ -62,14 +74,16 @@ export function WorkTimeCalendarPage({ employeeId }: { employeeId: string }) {
         <div className="grow">
           <p className="text-xs text-white/55">오늘 근태</p>
           <p className="font-bold text-white text-lg">
-            {isClockedOut
+            {!isScheduledToday && !isClockedIn
+              ? '오늘은 휴무입니다'
+              : isClockedOut
               ? `${todayRecord?.clockIn} ~ ${todayRecord?.clockOut} 완료`
               : isClockedIn
                 ? `${todayRecord?.clockIn} 출근중`
                 : '출근 전'}
           </p>
         </div>
-        {!isClockedIn && (
+        {!isClockedIn && isScheduledToday && (
           <Button onClick={handleClockIn} size="sm">
             출근하기
           </Button>
@@ -99,43 +113,12 @@ export function WorkTimeCalendarPage({ employeeId }: { employeeId: string }) {
 
       <MonthNav year={year} month={month} onChange={(y, m) => { setYear(y); setMonth(m); }} />
 
-      <Card padded={false} className="p-3 sm:p-5">
-        <div className="grid grid-cols-7 mb-1">
-          {WEEKDAY_LABELS_KO.map((w) => (
-            <div key={w} className="text-center text-xs text-ink-faint font-medium py-1">
-              {w}
-            </div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7 gap-1">
-          {Array.from({ length: leadingBlanks }).map((_, i) => (
-            <div key={`blank-${i}`} />
-          ))}
-          {dates.map((d) => {
-            const record = recordOf(d);
-            const dayNum = Number(d.slice(-2));
-            const hasEntry = record?.workedMinutes !== null && record?.workedMinutes !== undefined;
-            return (
-              <button
-                key={d}
-                onClick={() => setSelectedDate(d)}
-                className={`aspect-square rounded-control flex flex-col items-center justify-center text-xs gap-0.5 ${
-                  d === todayStr() ? 'ring-2 ring-brand-red' : ''
-                } ${hasEntry ? 'bg-status-working-bg' : 'bg-brand-beige-light'}`}
-              >
-                <span className="font-semibold text-ink">{dayNum}</span>
-                {hasEntry ? (
-                  <span className="whitespace-nowrap text-[11px] font-semibold text-status-working">
-                    {minutesToCompactHourText(record?.workedMinutes)}
-                  </span>
-                ) : (
-                  <span className="text-[9px] text-ink-faint">미입력</span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </Card>
+      <WorkTimeMonthCalendar
+        dates={dates}
+        records={records}
+        shifts={shifts}
+        onSelectDate={setSelectedDate}
+      />
 
       {selectedDate && (
         <WorkTimeEntryModal

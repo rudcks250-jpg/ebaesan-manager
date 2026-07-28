@@ -10,7 +10,9 @@ import { workTimeService } from '@/services/workTimeService';
 import { scheduleService } from '@/services/scheduleService';
 import { payrollService } from '@/services/payrollService';
 import { WorkTimeEntryModal } from '@/features/worktime/WorkTimeEntryModal';
-import { getMondayOfWeekStr, formatMonthDay, getWeekdayLabel } from '@/utils/date';
+import { WorkTimeMonthCalendar } from '@/features/worktime/WorkTimeMonthCalendar';
+import { formatMonthDay, getWeekdayLabel } from '@/utils/date';
+import { getMonthDates } from '@/utils/date';
 import { minutesToCompactHourText, minutesToHourText } from '@/utils/time';
 
 export function WorkTimeAdminPage() {
@@ -21,6 +23,8 @@ export function WorkTimeAdminPage() {
   const [employeeId, setEmployeeId] = useState('');
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth() + 1);
+  const monthDates = useMemo(() => getMonthDates(year, month), [year, month]);
+  const [monthShifts, setMonthShifts] = useState<Awaited<ReturnType<typeof scheduleService.getShiftsInRange>>>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedRecord, setSelectedRecord] = useState<Awaited<ReturnType<typeof workTimeService.get>>>(undefined);
 
@@ -42,7 +46,19 @@ export function WorkTimeAdminPage() {
     workTimeService.listByEmployeeAndMonth(employeeId, year, month).then(setRecords);
   }, [employeeId, year, month, refreshKey]);
 
+  useEffect(() => {
+    if (!employeeId) {
+      setMonthShifts([]);
+      return;
+    }
+    scheduleService
+      .getShiftsInRange(monthDates[0], monthDates[monthDates.length - 1])
+      .then((shifts) => setMonthShifts(shifts.filter((shift) => shift.employeeId === employeeId)));
+  }, [employeeId, monthDates, refreshKey]);
+
   const sortedRecords = [...records].sort((a, b) => (a.date < b.date ? 1 : -1));
+  const isWorkingDate = (date: string) =>
+    monthShifts.some((shift) => shift.date === date && shift.status === 'working');
   const totalMinutes = workTimeService.sumMinutes(records);
   const totalBreak = workTimeService.sumBreakMinutes(records);
   const workDaysCount = records.filter((r) => r.workedMinutes !== null).length;
@@ -116,6 +132,16 @@ export function WorkTimeAdminPage() {
 
       <MonthNav year={year} month={month} onChange={(y, m) => { setYear(y); setMonth(m); }} />
 
+      <WorkTimeMonthCalendar
+        dates={monthDates}
+        records={records}
+        shifts={monthShifts}
+        onSelectDate={(date) => {
+          setSelectedDate(date);
+          setSelectedRecord(records.find((record) => record.date === date));
+        }}
+      />
+
       {/* 급여 정보 카드 - ①~⑥ */}
       <div className="grid grid-cols-2 gap-2">
         <Card>
@@ -175,8 +201,9 @@ export function WorkTimeAdminPage() {
           {sortedRecords.map((r) => (
             <Card
               key={r.id}
-              className="flex items-center justify-between cursor-pointer"
+              className={`flex items-center justify-between ${isWorkingDate(r.date) ? 'cursor-pointer' : ''}`}
               onClick={() => {
+                if (!isWorkingDate(r.date)) return;
                 setSelectedDate(r.date);
                 setSelectedRecord(r);
               }}
