@@ -31,15 +31,19 @@ export function LoginPage() {
       return;
     }
 
-    const result = await login(name.trim(), password);
-    if (!result.success) {
-      setError(result.errorMessage ?? '로그인에 실패했습니다.');
+    try {
+      const result = await login(name.trim(), password);
+      if (!result.success) {
+        setError(result.errorMessage ?? '로그인에 실패했습니다.');
+        triggerShake();
+        return;
+      }
+      // 첫 로그인 비밀번호 변경 모달은 App 최상위에서 전역으로 표시됩니다.
+      navigate('/dashboard');
+    } catch {
+      setError('로그인 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
       triggerShake();
-      return;
     }
-    // 첫 로그인 비밀번호 변경 모달은 App 최상위에서 전역으로 표시되므로
-    // 여기서는 항상 대시보드로 이동만 하면 됩니다.
-    navigate('/dashboard');
   };
 
   return (

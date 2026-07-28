@@ -26,3 +26,5 @@ dist-ssr
 # 환경변수 (Supabase 키 포함 - 커밋 금지)
 .env
 .env.local
+.vercel
+.env*

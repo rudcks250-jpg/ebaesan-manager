@@ -82,37 +82,34 @@ export function SchedulePage() {
   );
 
   useEffect(() => {
-    employeeService.listActive().then(setEmployees);
-  }, [refreshKey]);
-
-  useEffect(() => {
     let cancelled = false;
     const loadWeek = async () => {
-      if (
-        isAdmin &&
-        session &&
-        employees.length > 0 &&
-        fixedScheduleSuppressedWeek !== weekStart
-      ) {
+      if (isAdmin && session && fixedScheduleSuppressedWeek !== weekStart) {
+        const activeEmployees = await employeeService.listActive();
         await scheduleService.ensureFixedWeeklySchedules(
           weekStart,
-          employees,
+          activeEmployees,
           session.employeeId
         );
       }
-      const loadedWeek = await scheduleService.getWeek(weekStart);
-      if (!cancelled) setWeek(loadedWeek);
+      const board = await scheduleService.getWeekBoard(weekStart);
+      if (!cancelled) {
+        setEmployees(board.employees);
+        setWeek(board.week);
+      }
     };
-    void loadWeek();
+    void loadWeek().catch(() => {
+      if (!cancelled) showToast('스케줄을 불러오지 못했습니다.', 'error');
+    });
     return () => {
       cancelled = true;
     };
   }, [
-    employees,
     fixedScheduleSuppressedWeek,
     isAdmin,
     refreshKey,
     session,
+    showToast,
     weekStart,
   ]);
 
@@ -319,7 +316,7 @@ export function SchedulePage() {
         />
       )}
 
-      <Modal
+      {isAdmin && <Modal
         open={copyOpen}
         onClose={() => !processing && setCopyOpen(false)}
         title="지난주 스케줄을 복사하시겠습니까?"
@@ -345,9 +342,9 @@ export function SchedulePage() {
           <input type="checkbox" checked readOnly className="w-4 h-4 accent-brand-red" />
           기존 스케줄 덮어쓰기
         </label>
-      </Modal>
+      </Modal>}
 
-      <Modal
+      {isAdmin && <Modal
         open={deleteOpen}
         onClose={() => !processing && setDeleteOpen(false)}
         title="이번 주 스케줄을 모두 삭제하시겠습니까?"
@@ -369,15 +366,17 @@ export function SchedulePage() {
           현재 화면의 이번 주 스케줄만 삭제됩니다.<br />
           직원 정보와 다른 주의 스케줄은 유지됩니다.
         </p>
-      </Modal>
+      </Modal>}
 
-      <ScheduleExport
-        ref={exportRef}
-        employees={sortedEmployees}
-        weekDates={weekDates}
-        shifts={week.shifts}
-        rangeLabel={rangeLabel}
-      />
+      {isAdmin && (
+        <ScheduleExport
+          ref={exportRef}
+          employees={sortedEmployees}
+          weekDates={weekDates}
+          shifts={week.shifts}
+          rangeLabel={rangeLabel}
+        />
+      )}
     </Layout>
   );
 }

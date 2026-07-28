@@ -11,6 +11,20 @@ export interface ShiftInput {
 }
 
 export const scheduleService = {
+  async getWeekBoard(weekStartDate: string): Promise<{
+    employees: Employee[];
+    week: ScheduleWeek;
+  }> {
+    const board = await scheduleRepository.getWeekBoard(
+      weekStartDate,
+      weekEndDate(weekStartDate),
+    );
+    return {
+      employees: board.employees,
+      week: { id: `week_${weekStartDate}`, weekStartDate, shifts: board.shifts },
+    };
+  },
+
   async ensureFixedWeeklySchedules(
     weekStartDate: string,
     employees: Employee[],

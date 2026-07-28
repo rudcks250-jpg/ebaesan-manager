@@ -1,7 +1,6 @@
 import { supabase } from '@/lib/supabaseClient';
 import { employeeRepository } from '@/repositories/employeeRepository';
 import type { Employee, EmployeeStatus, UserRole, WageType } from '@/data/types';
-import { MANAGED_EMPLOYEE_ROSTER } from '@/data/employeeRoster';
 
 export interface CreateEmployeeInput {
   name: string;
@@ -25,16 +24,29 @@ export interface EmployeeFilter {
   loginStatus?: LoginStatusFilter;
 }
 
-let rosterSyncPromise: Promise<void> | undefined;
+export interface BulkAccountCreationResult {
+  total: number;
+  created: number;
+  existing: number;
+  failed: number;
+  failures: Array<{ employeeId: string; name: string; reason: string }>;
+}
 
-function syncManagedRoster(): Promise<void> {
-  rosterSyncPromise ??= employeeRepository.syncManagedRoster(MANAGED_EMPLOYEE_ROSTER);
-  return rosterSyncPromise;
+async function functionErrorMessage(error: unknown, fallback: string): Promise<string> {
+  const context = (error as { context?: Response })?.context;
+  if (context) {
+    try {
+      const payload = await context.clone().json() as { error?: string };
+      if (payload.error) return payload.error;
+    } catch {
+      // 응답 본문을 읽을 수 없으면 사용자용 기본 문구를 사용합니다.
+    }
+  }
+  return fallback;
 }
 
 export const employeeService = {
   async list(filter?: EmployeeFilter): Promise<Employee[]> {
-    await syncManagedRoster();
     const all = await employeeRepository.findAll();
     let list = all;
     if (filter?.keyword) {
@@ -50,7 +62,6 @@ export const employeeService = {
   },
 
   async listActive(): Promise<Employee[]> {
-    await syncManagedRoster();
     const all = await employeeRepository.findAll();
     return all.filter((e) => e.status === 'active');
   },
@@ -80,13 +91,23 @@ export const employeeService = {
         hireDate: input.hireDate,
       },
     });
-    if (error) throw error;
+    if (error) throw new Error(await functionErrorMessage(error, '계정 생성 실패'));
     if (data?.error) throw new Error(data.error);
-    return (await employeeRepository.findById(data.employee.id))!;
+    const employee = await employeeRepository.findById(data?.employee?.id);
+    if (!employee) throw new Error('생성된 직원 정보를 확인할 수 없습니다.');
+    return employee;
   },
 
   async update(id: string, patch: Partial<Employee>): Promise<Employee | undefined> {
-    return employeeRepository.update(id, patch);
+    try {
+      return await employeeRepository.update(id, patch);
+    } catch (error) {
+      const code = (error as { code?: string })?.code;
+      if (code === '23505' && patch.name !== undefined) {
+        throw new Error('이미 존재하는 직원입니다.');
+      }
+      throw new Error('직원 정보 수정에 실패했습니다.');
+    }
   },
 
   async setStatus(id: string, status: EmployeeStatus, resignDate?: string): Promise<Employee | undefined> {
@@ -117,7 +138,7 @@ export const employeeService = {
     const { data, error } = await supabase.functions.invoke('reset-employee-password', {
       body: { employeeId: id },
     });
-    if (error) throw error;
+    if (error) throw new Error(await functionErrorMessage(error, '비밀번호 초기화에 실패했습니다.'));
     if (data?.error) throw new Error(data.error);
   },
 
@@ -126,9 +147,27 @@ export const employeeService = {
     const { data, error } = await supabase.functions.invoke('delete-employee', {
       body: { employeeId: id },
     });
-    if (error) throw error;
+    if (error) throw new Error(await functionErrorMessage(error, '직원 삭제에 실패했습니다.'));
     if (data?.error) throw new Error(data.error);
     if (!data?.success) throw new Error('직원 삭제 결과를 확인할 수 없습니다.');
+  },
+
+  async createAccountsForExistingEmployees(): Promise<BulkAccountCreationResult> {
+    const { data, error } = await supabase.functions.invoke('bulk-create-employee-accounts', {
+      body: {},
+    });
+    if (error) {
+      throw new Error(await functionErrorMessage(error, '기존 직원 계정 생성에 실패했습니다.'));
+    }
+    if (data?.error) throw new Error(data.error);
+    if (!data?.success) throw new Error('계정 생성 결과를 확인할 수 없습니다.');
+    return {
+      total: Number(data.total) || 0,
+      created: Number(data.created) || 0,
+      existing: Number(data.existing) || 0,
+      failed: Number(data.failed) || 0,
+      failures: Array.isArray(data.failures) ? data.failures : [],
+    };
   },
 
   async listPositions(): Promise<string[]> {

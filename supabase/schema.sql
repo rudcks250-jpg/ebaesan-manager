@@ -34,6 +34,10 @@ create table if not exists public.employees (
 
 create index if not exists idx_employees_role on public.employees(role);
 create index if not exists idx_employees_status on public.employees(status);
+-- 로그인 아이디인 이름은 공백/대소문자 차이까지 정규화해 하나만 허용합니다.
+-- 기존 데이터에 중복 이름이 있으면 먼저 정리한 뒤 이 스키마를 적용해야 합니다.
+create unique index if not exists uq_employees_login_name
+  on public.employees (lower(btrim(name)));
 
 -- ---------------------------------------------------------
 -- 2. schedules (주간 근무표)
@@ -159,6 +163,73 @@ as $$
   select e.id from public.employees e where e.auth_user_id = auth.uid();
 $$;
 
+-- 비밀번호 변경을 마친 본인만 최초 로그인 플래그를 해제할 수 있습니다.
+create or replace function public.complete_first_login(p_employee_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.employees
+  set is_first_login = false
+  where id = p_employee_id and auth_user_id = auth.uid();
+
+  if not found then
+    raise exception '직원 정보를 확인할 수 없습니다.';
+  end if;
+end;
+$$;
+
+-- 직원 스케줄 화면에는 개인정보/급여를 제외한 재직 직원 식별정보만 제공합니다.
+create or replace function public.list_schedule_employees()
+returns table(id uuid, name text)
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select e.id, e.name
+  from public.employees e
+  where e.status = 'active'
+    and public.current_employee_id() is not null
+  order by e.name;
+$$;
+
+-- 관리자와 직원 스케줄 화면이 동일한 데이터 스냅샷을 사용하도록
+-- 재직 직원 목록과 해당 주 전체 스케줄을 한 번에 반환합니다.
+create or replace function public.get_schedule_week_board(
+  p_start_date date,
+  p_end_date date
+)
+returns jsonb
+language plpgsql
+security definer
+stable
+set search_path = public
+as $$
+begin
+  if public.current_employee_id() is null then
+    raise exception '인증된 직원만 스케줄을 조회할 수 있습니다.';
+  end if;
+
+  return jsonb_build_object(
+    'employees',
+    coalesce((
+      select jsonb_agg(jsonb_build_object('id', e.id, 'name', e.name) order by e.name)
+      from public.employees e
+      where e.status = 'active'
+    ), '[]'::jsonb),
+    'shifts',
+    coalesce((
+      select jsonb_agg(to_jsonb(s) order by s.date, s.employee_id)
+      from public.schedules s
+      where s.date between p_start_date and p_end_date
+    ), '[]'::jsonb)
+  );
+end;
+$$;
+
 -- 로그인 화면에서 "이름"만으로 로그인할 수 있도록, 이름 -> 내부 로그인 이메일을
 -- 조회하는 함수입니다. 비밀번호 자체는 절대 다루지 않고 이메일만 반환하며,
 -- 로그인 전(비인증 상태)에서도 호출할 수 있도록 anon 권한을 부여합니다.
@@ -169,13 +240,19 @@ security definer
 stable
 as $$
   select login_email from public.employees
-  where name = p_name and status <> 'resigned'
+  where lower(btrim(name)) = lower(btrim(p_name)) and status <> 'resigned'
   limit 1;
 $$;
 
 grant execute on function public.lookup_login_email(text) to anon, authenticated;
 grant execute on function public.is_admin() to anon, authenticated;
 grant execute on function public.current_employee_id() to anon, authenticated;
+revoke all on function public.complete_first_login(uuid) from public, anon;
+grant execute on function public.complete_first_login(uuid) to authenticated;
+revoke all on function public.list_schedule_employees() from public, anon;
+grant execute on function public.list_schedule_employees() to authenticated;
+revoke all on function public.get_schedule_week_board(date, date) from public, anon;
+grant execute on function public.get_schedule_week_board(date, date) to authenticated;
 
 -- ---------------------------------------------------------
 -- RLS 활성화
@@ -198,22 +275,20 @@ drop policy if exists employees_self_select on public.employees;
 create policy employees_self_select on public.employees
   for select using (auth_user_id = auth.uid());
 
--- 직원 본인이 첫 로그인 후 비밀번호 변경 시 is_first_login 플래그만 갱신할 수 있게 허용
+-- 본인의 최초 로그인 완료 처리는 complete_first_login RPC로만 허용합니다.
 drop policy if exists employees_self_update_first_login on public.employees;
-create policy employees_self_update_first_login on public.employees
-  for update using (auth_user_id = auth.uid())
-  with check (auth_user_id = auth.uid());
 
 -- ---------------------------------------------------------
--- schedules 정책: 관리자는 전체 관리, 직원은 본인 스케줄 조회만
+-- schedules 정책: 관리자는 전체 관리, 직원은 전체 스케줄 조회만
 -- ---------------------------------------------------------
 drop policy if exists schedules_admin_all on public.schedules;
 create policy schedules_admin_all on public.schedules
   for all using (public.is_admin()) with check (public.is_admin());
 
 drop policy if exists schedules_self_select on public.schedules;
-create policy schedules_self_select on public.schedules
-  for select using (employee_id = public.current_employee_id());
+drop policy if exists schedules_staff_select_all on public.schedules;
+create policy schedules_staff_select_all on public.schedules
+  for select using (public.current_employee_id() is not null);
 
 -- ---------------------------------------------------------
 -- attendance 정책: 관리자는 전체, 직원은 본인 기록 조회/입력/수정 가능

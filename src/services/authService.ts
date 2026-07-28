@@ -21,7 +21,7 @@ export interface LoginResult {
 export const authService = {
   async login(name: string, password: string): Promise<LoginResult> {
     const { data: loginEmail, error: lookupError } = await supabase.rpc('lookup_login_email', {
-      p_name: name,
+      p_name: name.trim(),
     });
 
     if (lookupError || !loginEmail) {
@@ -29,26 +29,16 @@ export const authService = {
     }
 
     const { data, error } = await supabase.auth.signInWithPassword({
-  email: loginEmail,
-  password,
-});
+      email: loginEmail,
+      password,
+    });
 
-console.log("lookup email:", loginEmail);
-console.log("입력 비밀번호:", password);
-console.log("로그인 에러:", error);
-console.log("user:", data?.user);
+    if (error || !data.user) {
+      return { success: false, errorMessage: '아이디 또는 비밀번호가 올바르지 않습니다.' };
+    }
 
-if (error || !data.user) {
-  return {
-    success: false,
-    errorMessage: error?.message ?? "아이디 또는 비밀번호가 올바르지 않습니다.",
-  };
-}
-
-console.log("유저 ID:", data.user.id);
     const foundEmployee = await employeeRepository.findByAuthUserId(data.user.id);
     const employee = foundEmployee ? await employeeRepository.normalizeAdministratorProfile(foundEmployee) : undefined;
-    console.log("직원 정보:", employee);
     if (!employee) {
       await supabase.auth.signOut();
       return { success: false, errorMessage: '직원 정보를 찾을 수 없습니다. 관리자에게 문의하세요.' };
@@ -65,7 +55,11 @@ console.log("유저 ID:", data.user.id);
     await employeeRepository.update(employee.id, { lastLoginAt: new Date().toISOString() });
 
     const session: AuthSession = { employeeId: employee.id, name: employee.name, role: employee.role };
-    return { success: true, session, requirePasswordChange: employee.isFirstLogin };
+    return {
+      success: true,
+      session,
+      requirePasswordChange: employee.role === 'staff' && employee.isFirstLogin,
+    };
   },
 
   async logout(): Promise<void> {
@@ -88,7 +82,10 @@ console.log("유저 ID:", data.user.id);
   async changePassword(employeeId: string, newPassword: string): Promise<void> {
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     if (error) throw error;
-    await employeeRepository.update(employeeId, { isFirstLogin: false });
+    const { error: flagError } = await supabase.rpc('complete_first_login', {
+      p_employee_id: employeeId,
+    });
+    if (flagError) throw flagError;
   },
 
   // 비밀번호 초기화는 다른 사용자의 인증정보를 바꾸는 작업이라 service role 권한이

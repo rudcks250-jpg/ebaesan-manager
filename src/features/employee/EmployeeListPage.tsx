@@ -11,9 +11,11 @@ import { EmployeeFormModal } from '@/features/employee/EmployeeFormModal';
 import { EmployeeDetailModal } from '@/features/employee/EmployeeDetailModal';
 import { employeeService, type LoginStatusFilter } from '@/services/employeeService';
 import type { Employee, EmployeeStatus, WageType } from '@/data/types';
-import { Users, UserCheck, CircleDollarSign } from 'lucide-react';
+import { Users, UserCheck, CircleDollarSign, UserPlus, UserRoundCheck, CircleX } from 'lucide-react';
 import { StatCard } from '@/components/common/StatCard';
+import { Modal } from '@/components/common/Modal';
 import { compareEmployeesByPayday, getEmployeePaydayInfo } from '@/features/employee/employeePayday';
+import type { BulkAccountCreationResult } from '@/services/employeeService';
 
 interface LocationState {
   loginFilter?: LoginStatusFilter;
@@ -45,6 +47,8 @@ export function EmployeeListPage() {
   const [detailTarget, setDetailTarget] = useState<Employee | undefined>(undefined);
   const [deleteTarget, setDeleteTarget] = useState<Employee | undefined>(undefined);
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
+  const [creatingAccounts, setCreatingAccounts] = useState(false);
+  const [accountResult, setAccountResult] = useState<BulkAccountCreationResult | undefined>();
 
   // 대시보드 "로그인 관리" 카드에서 넘어온 경우 필터를 자동 적용합니다.
   useEffect(() => {
@@ -58,8 +62,10 @@ export function EmployeeListPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    employeeService.listPositions().then(setPositions);
-  }, [refreshKey]);
+    employeeService.listPositions().then(setPositions).catch(() => {
+      showToast('직책 목록을 불러오지 못했습니다.', 'error');
+    });
+  }, [refreshKey, showToast]);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,13 +81,16 @@ export function EmployeeListPage() {
       .then((list) => {
         if (!cancelled) setEmployees(list);
       })
+      .catch(() => {
+        if (!cancelled) showToast('직원 목록을 불러오지 못했습니다.', 'error');
+      })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [keyword, statusFilter, wageFilter, positionFilter, loginFilter, refreshKey]);
+  }, [keyword, statusFilter, wageFilter, positionFilter, loginFilter, refreshKey, showToast]);
 
   const visibleEmployees = employees
     .filter((employee) => {
@@ -126,6 +135,24 @@ export function EmployeeListPage() {
     }
   };
 
+  const handleBulkAccountCreation = async () => {
+    if (creatingAccounts) return;
+    setCreatingAccounts(true);
+    try {
+      const result = await employeeService.createAccountsForExistingEmployees();
+      setAccountResult(result);
+      setRefreshKey((key) => key + 1);
+      showToast('기존 직원 계정 생성을 완료했습니다.');
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : '기존 직원 계정 생성에 실패했습니다.',
+        'error',
+      );
+    } finally {
+      setCreatingAccounts(false);
+    }
+  };
+
   return (
     <Layout title="직원관리">
       <div className="flex items-center justify-between mb-5 gap-2">
@@ -133,9 +160,19 @@ export function EmployeeListPage() {
           <p className="text-lg font-bold text-ink">직원 디렉토리</p>
           <p className="text-xs text-ink-soft mt-1">직원 정보와 오늘의 근무 상태를 관리합니다.</p>
         </div>
-        <Button size="sm" onClick={openCreate}>
-          직원 등록
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={creatingAccounts}
+            onClick={() => void handleBulkAccountCreation()}
+          >
+            {creatingAccounts ? '계정 생성 중...' : '기존 직원 계정 생성'}
+          </Button>
+          <Button size="sm" onClick={openCreate}>
+            직원 등록
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-3 mb-5">
@@ -275,6 +312,43 @@ export function EmployeeListPage() {
         }}
         onClose={() => setDeleteTarget(undefined)}
       />
+
+      <Modal
+        open={!!accountResult}
+        title="기존 직원 계정 생성 결과"
+        onClose={() => setAccountResult(undefined)}
+        footer={
+          <Button fullWidth onClick={() => setAccountResult(undefined)}>
+            확인
+          </Button>
+        }
+      >
+        {accountResult && (
+          <div className="space-y-3 pb-5 text-sm">
+            <div className="grid grid-cols-2 gap-3">
+              <StatCard icon={Users} label="총 직원" value={`${accountResult.total}명`} />
+              <StatCard icon={UserPlus} label="생성 완료" value={`${accountResult.created}명`} tone="green" />
+              <StatCard icon={UserRoundCheck} label="이미 존재" value={`${accountResult.existing}명`} />
+              <StatCard
+                icon={CircleX}
+                label="실패"
+                value={`${accountResult.failed}명`}
+                tone={accountResult.failed > 0 ? 'red' : undefined}
+              />
+            </div>
+            {accountResult.failures.length > 0 && (
+              <div className="rounded-xl bg-status-rejected/5 p-3">
+                <p className="font-semibold text-status-rejected mb-2">실패 내역</p>
+                {accountResult.failures.map((failure) => (
+                  <p key={failure.employeeId} className="text-xs text-ink-soft">
+                    {failure.name}: {failure.reason}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
     </Layout>
   );
 }

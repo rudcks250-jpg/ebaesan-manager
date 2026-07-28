@@ -28,7 +28,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 // 새로고침이나 URL 직접 진입으로 컴포넌트가 다시 마운트되어도
 // 항상 실제 데이터(Supabase) 기준으로 강제 여부를 판단합니다.
 async function deriveRequirePasswordChange(session: AuthSession | null): Promise<boolean> {
-  if (!session) return false;
+  if (!session || session.role === 'admin') return false;
   const employee = await employeeRepository.findById(session.employeeId);
   return !!employee?.isFirstLogin;
 }

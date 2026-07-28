@@ -33,6 +33,7 @@ export function EmployeeFormModal({ open, onClose, onSaved, employee }: Employee
   const [error, setError] = useState('');
   const [confirmResign, setConfirmResign] = useState(false);
   const [confirmResetPw, setConfirmResetPw] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const resetAndClose = () => {
     setError('');
@@ -40,8 +41,14 @@ export function EmployeeFormModal({ open, onClose, onSaved, employee }: Employee
   };
 
   const handleSave = async () => {
+    if (saving) return;
     if (!name.trim() || !phone.trim() || !position.trim()) {
       setError('이름, 전화번호, 직책은 필수입니다.');
+      return;
+    }
+    const phoneDigits = phone.replace(/\D/g, '');
+    if (!/^0\d{9,10}$/.test(phoneDigits)) {
+      setError('전화번호가 올바르지 않습니다.');
       return;
     }
     const wageAmount = wageType === 'hourly' ? Number(hourlyWage) : Number(monthlySalary);
@@ -51,6 +58,7 @@ export function EmployeeFormModal({ open, onClose, onSaved, employee }: Employee
     }
 
     try {
+      setSaving(true);
       if (isEdit && employee) {
         await employeeService.update(employee.id, {
           name: name.trim(),
@@ -81,6 +89,8 @@ export function EmployeeFormModal({ open, onClose, onSaved, employee }: Employee
       resetAndClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : '저장에 실패했습니다.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -95,8 +105,8 @@ export function EmployeeFormModal({ open, onClose, onSaved, employee }: Employee
             <Button variant="secondary" fullWidth onClick={resetAndClose}>
               취소
             </Button>
-            <Button fullWidth onClick={handleSave}>
-              저장
+            <Button fullWidth onClick={handleSave} disabled={saving}>
+              {saving ? '저장 중...' : '저장'}
             </Button>
           </div>
         }
@@ -204,8 +214,11 @@ export function EmployeeFormModal({ open, onClose, onSaved, employee }: Employee
             try {
               await employeeService.resetPassword(employee.id);
               showToast('비밀번호가 초기화되었습니다.');
-            } catch {
-              showToast('비밀번호 초기화에 실패했습니다.', 'error');
+            } catch (error) {
+              showToast(
+                error instanceof Error ? error.message : '비밀번호 초기화에 실패했습니다.',
+                'error',
+              );
             }
           }
         }}

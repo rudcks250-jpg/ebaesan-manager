@@ -60,8 +60,34 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    await adminClient.auth.admin.updateUserById(target.auth_user_id, { password: target.phone });
-    await adminClient.from('employees').update({ is_first_login: true }).eq('id', employeeId);
+    const digits = String(target.phone ?? '').replace(/\D/g, '');
+    if (!/^0\d{9,10}$/.test(digits)) {
+      return new Response(JSON.stringify({ error: '등록된 전화번호가 올바르지 않습니다.' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { error: passwordError } = await adminClient.auth.admin.updateUserById(
+      target.auth_user_id,
+      { password: digits },
+    );
+    if (passwordError) {
+      return new Response(JSON.stringify({ error: '비밀번호 초기화에 실패했습니다.' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    const { error: flagError } = await adminClient
+      .from('employees')
+      .update({ is_first_login: true })
+      .eq('id', employeeId);
+    if (flagError) {
+      return new Response(JSON.stringify({ error: '비밀번호는 초기화되었지만 로그인 상태 갱신에 실패했습니다.' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
