@@ -64,7 +64,7 @@ export function ScheduleCell({
     >
       {working ? (
         <span
-          className={`flex min-h-10 w-full items-center justify-center gap-2 rounded-[14px] px-2.5 py-1.5 text-[14px] font-extrabold tabular-nums whitespace-nowrap transition-all duration-150 ${accent.soft} ${accent.text} ${
+          className={`flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] px-3.5 py-2 text-[15px] font-semibold tabular-nums whitespace-nowrap transition-all duration-150 ${accent.soft} ${accent.text} ${
             clickable ? 'group-hover/cell:-translate-y-0.5 group-hover/cell:shadow-[0_8px_18px_-13px_rgba(0,0,0,.5)]' : ''
           }`}
         >
@@ -72,8 +72,7 @@ export function ScheduleCell({
           {shortTime(startLabel)}-{shortTime(endLabel)}
         </span>
       ) : (
-        <span className="flex min-h-10 w-full items-center justify-center gap-2 rounded-[14px] bg-[#FFF0EF] px-3 py-1.5 text-[13px] font-bold text-[#B34E47] transition-all duration-150 group-hover/cell:-translate-y-0.5">
-          <span className="h-2 w-2 rounded-full bg-[#DE8A84]" aria-hidden="true" />
+        <span className="flex min-h-11 w-full items-center justify-center px-3 py-2 text-[13px] font-medium text-[#9CA3AF]">
           휴무
         </span>
       )}

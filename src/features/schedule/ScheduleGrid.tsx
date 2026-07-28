@@ -1,10 +1,19 @@
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { ScheduleCell } from '@/features/schedule/ScheduleCell';
 import { parseDate, isToday } from '@/utils/date';
 import { getEmployeeAccent } from '@/utils/employeeAccent';
 import type { Employee, ShiftEntry } from '@/data/types';
 
 const WEEKDAY_LABELS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+const REQUIRED_TOTAL_BY_WEEKDAY: Record<number, number> = {
+  0: 7,
+  1: 7,
+  2: 7,
+  3: 7,
+  4: 7,
+  5: 8,
+  6: 7,
+};
 
 interface ScheduleGridProps {
   employees: Employee[];
@@ -41,6 +50,35 @@ export function ScheduleGrid({
   const suppressClickRef = useRef(false);
   const getShift = (employeeId: string, date: string) =>
     shifts.find((s) => s.employeeId === employeeId && s.date === date);
+  const coverage = useMemo(
+    () =>
+      weekDates.map((date) => {
+        const workingShifts = shifts.filter(
+          (shift) =>
+            shift.date === date &&
+            shift.status === 'working' &&
+            !!shift.startTime &&
+            !!shift.endTime
+        );
+        const total = workingShifts.length;
+        const byFive = workingShifts.filter(
+          (shift) => !!shift.startTime && shift.startTime <= '17:00'
+        ).length;
+        const requiredTotal = REQUIRED_TOTAL_BY_WEEKDAY[parseDate(date).getDay()];
+        const totalShort = total < requiredTotal;
+        const fiveShort = byFive < 4;
+        const reason =
+          totalShort && fiveShort
+            ? '총/17시 부족'
+            : totalShort
+              ? '총 인원 부족'
+              : fiveShort
+                ? '17시 인원 부족'
+                : '정상';
+        return { date, total, byFive, requiredTotal, isNormal: !totalShort && !fiveShort, reason };
+      }),
+    [shifts, weekDates]
+  );
 
   const getDayStyle = (date: string) => {
     const day = parseDate(date).getDay();
@@ -184,6 +222,45 @@ export function ScheduleGrid({
               </tr>
             ))}
           </tbody>
+          <tfoot>
+            <tr>
+              <th className="sticky left-0 z-20 bg-[#F8F9FA] px-4 py-3 text-left text-xs font-semibold text-ink-soft">
+                총 근무 인원
+              </th>
+              {coverage.map((item) => (
+                <td key={item.date} className="bg-[#F8F9FA] px-2 py-3 text-center text-sm font-bold text-ink">
+                  {item.total}명
+                  <span className="ml-1 text-[10px] font-medium text-ink-faint">/ {item.requiredTotal}</span>
+                </td>
+              ))}
+            </tr>
+            <tr>
+              <th className="sticky left-0 z-20 bg-white px-4 py-3 text-left text-xs font-semibold text-ink-soft">
+                17시 가능 인원
+              </th>
+              {coverage.map((item) => (
+                <td key={item.date} className="bg-white px-2 py-3 text-center text-sm font-bold text-ink">
+                  {item.byFive}명
+                  <span className="ml-1 text-[10px] font-medium text-ink-faint">/ 4</span>
+                </td>
+              ))}
+            </tr>
+            <tr>
+              <th className="sticky left-0 z-20 bg-[#F8F9FA] px-4 py-3 text-left text-xs font-semibold text-ink-soft">
+                상태
+              </th>
+              {coverage.map((item) => (
+                <td
+                  key={item.date}
+                  className={`bg-[#F8F9FA] px-1.5 py-3 text-center text-[11px] font-bold ${
+                    item.isNormal ? 'text-status-working' : 'text-status-rejected'
+                  }`}
+                >
+                  {item.isNormal ? '✅ 정상' : `❌ ${item.reason}`}
+                </td>
+              ))}
+            </tr>
+          </tfoot>
         </table>
       </div>
 
@@ -226,6 +303,42 @@ export function ScheduleGrid({
           </section>
         ))}
       </div>
+
+      <section className="md:hidden overflow-hidden rounded-[24px] bg-white/92 p-4 shadow-premium ring-1 ring-black/[0.035]">
+        <h3 className="mb-3 px-1 text-sm font-bold text-ink">주간 운영 체크</h3>
+        <div className="overflow-x-auto scrollbar-thin">
+          <table className="w-full min-w-[620px] text-center">
+            <thead>
+              <tr>
+                <th className="w-28 px-2 py-2 text-left text-[11px] text-ink-faint">항목</th>
+                {coverage.map((item) => (
+                  <th key={item.date} className="px-2 py-2 text-xs font-bold text-ink">
+                    {WEEKDAY_LABELS[parseDate(item.date).getDay()]}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="bg-[#F8F9FA]">
+                <th className="px-2 py-2.5 text-left text-xs font-semibold text-ink-soft">총 인원</th>
+                {coverage.map((item) => <td key={item.date} className="text-xs font-bold">{item.total}/{item.requiredTotal}</td>)}
+              </tr>
+              <tr>
+                <th className="px-2 py-2.5 text-left text-xs font-semibold text-ink-soft">17시 인원</th>
+                {coverage.map((item) => <td key={item.date} className="text-xs font-bold">{item.byFive}/4</td>)}
+              </tr>
+              <tr className="bg-[#F8F9FA]">
+                <th className="px-2 py-2.5 text-left text-xs font-semibold text-ink-soft">상태</th>
+                {coverage.map((item) => (
+                  <td key={item.date} className={`px-1 text-[10px] font-bold ${item.isNormal ? 'text-status-working' : 'text-status-rejected'}`}>
+                    {item.isNormal ? '✅ 정상' : `❌ ${item.reason}`}
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
     </>
   );
 }
