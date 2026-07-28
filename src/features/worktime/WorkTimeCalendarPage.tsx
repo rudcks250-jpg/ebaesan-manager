@@ -125,7 +125,7 @@ export function WorkTimeCalendarPage({ employeeId }: { employeeId: string }) {
               >
                 <span className="font-semibold text-ink">{dayNum}</span>
                 {hasEntry ? (
-                  <span className="text-[9px] font-semibold text-status-working">
+                  <span className="whitespace-nowrap text-[11px] font-semibold text-status-working">
                     {minutesToCompactHourText(record?.workedMinutes)}
                   </span>
                 ) : (
