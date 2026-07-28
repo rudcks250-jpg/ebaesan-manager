@@ -122,7 +122,7 @@ export const payrollService = {
   async getMonthlyPayroll(year: number, month: number): Promise<MonthlyPayrollSummary> {
     const yearMonth = `${year}-${String(month).padStart(2, '0')}`;
     const allEmployees = await employeeService.listActive();
-    const employees = allEmployees.filter((e) => e.role === 'staff');
+    const employees = allEmployees.filter((e) => e.role !== 'admin');
 
     const rows: EmployeePayroll[] = await Promise.all(
       employees.map(async (employee) => {

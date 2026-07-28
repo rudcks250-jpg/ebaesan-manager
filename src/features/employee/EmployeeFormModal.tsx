@@ -21,7 +21,7 @@ export function EmployeeFormModal({ open, onClose, onSaved, employee }: Employee
   const [name, setName] = useState(employee?.name ?? '');
   const [phone, setPhone] = useState(employee?.phone ?? '');
   const [position, setPosition] = useState(employee?.position ?? '홀');
-  const [role, setRole] = useState<UserRole>(employee?.role ?? 'staff');
+  const [role, setRole] = useState<UserRole>(employee?.role ?? 'employee');
   const [wageType, setWageType] = useState<WageType>(employee?.wageType ?? 'hourly');
   const [hourlyWage, setHourlyWage] = useState(String(employee?.hourlyWage ?? ''));
   const [monthlySalary, setMonthlySalary] = useState(String(employee?.monthlySalary ?? ''));
@@ -125,7 +125,8 @@ export function EmployeeFormModal({ open, onClose, onSaved, employee }: Employee
           placeholder="예: 홀, 주방, 매니저"
         />
         <Select label="권한" value={role} onChange={(e) => setRole(e.target.value as UserRole)}>
-          <option value="staff">직원</option>
+          <option value="employee">직원</option>
+          <option value="manager">매니저</option>
           <option value="admin">관리자</option>
         </Select>
         <Select

@@ -58,7 +58,7 @@ export const authService = {
     return {
       success: true,
       session,
-      requirePasswordChange: employee.role === 'staff' && employee.isFirstLogin,
+      requirePasswordChange: employee.role !== 'admin' && employee.isFirstLogin,
     };
   },
 

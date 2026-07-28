@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useCallback, useEffect, type React
 import { supabase } from '@/lib/supabaseClient';
 import { authService } from '@/services/authService';
 import { employeeRepository } from '@/repositories/employeeRepository';
-import type { AuthSession } from '@/data/types';
+import type { AuthSession, UserRole } from '@/data/types';
 import { notificationService } from '@/services/notificationService';
 
 interface AuthContextValue {
@@ -19,7 +19,7 @@ interface AuthContextValue {
   isStaffPreview: boolean;
   enterStaffPreview: () => Promise<void>;
   exitStaffPreview: () => void;
-  effectiveRole: 'admin' | 'staff' | undefined;
+  effectiveRole: UserRole | undefined;
   effectiveEmployeeId: string | undefined;
 }
 
@@ -104,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const enterStaffPreview = useCallback(async () => {
     const all = await employeeRepository.findAll();
-    const staffEmployee = all.find((e) => e.role === 'staff' && e.status === 'active');
+    const staffEmployee = all.find((e) => e.role === 'employee' && e.status === 'active');
     setPreviewEmployeeId(staffEmployee?.id);
     setIsStaffPreview(true);
   }, []);
@@ -114,7 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setPreviewEmployeeId(undefined);
   }, []);
 
-  const effectiveRole = isStaffPreview ? 'staff' : session?.role;
+  const effectiveRole = isStaffPreview ? 'employee' : session?.role;
   const effectiveEmployeeId = isStaffPreview ? previewEmployeeId : session?.employeeId;
 
   return (

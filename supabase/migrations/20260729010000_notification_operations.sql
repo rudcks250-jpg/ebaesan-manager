@@ -86,7 +86,7 @@ begin
       p_kind, e.id, btrim(p_title), btrim(p_body), coalesce(nullif(p_link, ''), '/dashboard'),
       p_scheduled_for, p_scheduled_for, v_creator, jsonb_build_object('batch_id', v_batch)
     from public.employees e
-    where e.role = 'staff' and e.status = 'active';
+    where e.role in ('manager', 'employee') and e.status = 'active';
   else
     insert into public.notification_jobs (
       event_key, kind, recipient_employee_id, title, body, link,

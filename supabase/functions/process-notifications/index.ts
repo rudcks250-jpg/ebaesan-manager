@@ -181,7 +181,7 @@ async function enqueueScheduled(admin: any) {
   }
 
   if (kst.weekday === 'Tue' && kst.hour === 20) {
-    const { data: staff } = await admin.from('employees').select('id').eq('role', 'staff').eq('status', 'active');
+    const { data: staff } = await admin.from('employees').select('id').in('role', ['manager', 'employee']).eq('status', 'active');
     for (const employee of staff ?? []) {
       await admin.rpc('enqueue_notification', {
         p_event_key: `leave_reminder:${kst.date}:${employee.id}`,
@@ -195,7 +195,7 @@ async function enqueueScheduled(admin: any) {
   }
 
   if (kst.hour === 21) {
-    const { data: admins } = await admin.from('employees').select('id').eq('role', 'admin').eq('status', 'active');
+    const { data: admins } = await admin.from('employees').select('id').in('role', ['admin', 'manager']).eq('status', 'active');
     for (const employee of admins ?? []) {
       await admin.rpc('enqueue_notification', {
         p_event_key: `order:${kst.date}:${employee.id}`,
@@ -213,7 +213,7 @@ async function enqueueScheduled(admin: any) {
     const { data: staff } = await admin
       .from('employees')
       .select('id,payday')
-      .eq('role', 'staff')
+      .in('role', ['manager', 'employee'])
       .eq('status', 'active');
     for (const employee of staff ?? []) {
       const todayPayday = isPayday(employee.payday, kst.date);

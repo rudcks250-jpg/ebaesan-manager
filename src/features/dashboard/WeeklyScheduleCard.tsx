@@ -18,7 +18,7 @@ export function WeeklyScheduleCard() {
   const weekDates = getWeekDates(weekStart);
 
   useEffect(() => {
-    employeeService.listActive().then((list) => setEmployees(list.filter((e) => e.role === 'staff')));
+    employeeService.listActive().then((list) => setEmployees(list.filter((e) => e.role !== 'admin')));
     scheduleService.getWeek(weekStart).then(setWeek);
   }, [weekStart]);
 

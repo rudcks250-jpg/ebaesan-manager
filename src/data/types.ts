@@ -4,7 +4,7 @@
 // 임의로 필드를 삭제하지 말고, 확장이 필요하면 옵셔널로 추가하세요.
 // =========================================================
 
-export type UserRole = 'admin' | 'staff';
+export type UserRole = 'admin' | 'manager' | 'employee';
 
 export type WageType = 'hourly' | 'monthly';
 

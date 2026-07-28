@@ -83,7 +83,7 @@ export function SideNav() {
           <div>
         <p className="text-sm font-semibold text-ink">{session?.name}</p>
         <p className="text-[11px] text-ink-soft">
-          {session?.role === 'admin' ? '대표' : '직원'}
+          {session?.role === 'admin' ? '대표' : session?.role === 'manager' ? '매니저' : '직원'}
         </p>
           </div>
         </div>

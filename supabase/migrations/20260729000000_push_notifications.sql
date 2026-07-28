@@ -50,7 +50,7 @@ create table if not exists public.notification_jobs (
   event_key text not null unique,
   kind text not null,
   recipient_employee_id uuid references public.employees(id) on delete cascade,
-  recipient_role text check (recipient_role in ('admin', 'staff')),
+  recipient_role text check (recipient_role in ('admin', 'manager', 'employee')),
   title text not null,
   body text not null,
   link text not null default '/',
@@ -137,7 +137,7 @@ begin
     '/schedule',
     jsonb_build_object('week_start', p_week_start)
   from public.employees e
-  where e.role = 'staff' and e.status = 'active'
+  where e.role in ('manager', 'employee') and e.status = 'active'
   on conflict (event_key) do nothing;
 
   get diagnostics v_count = row_count;
@@ -173,7 +173,7 @@ begin
     '/dashboard#notices',
     jsonb_build_object('notice_id', v_notice.id)
   from public.employees e
-  where e.role = 'staff' and e.status = 'active'
+  where e.role in ('manager', 'employee') and e.status = 'active'
   on conflict (event_key) do nothing;
 
   return v_notice;

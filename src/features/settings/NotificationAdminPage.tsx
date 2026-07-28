@@ -47,7 +47,7 @@ export function NotificationAdminPage() {
       employeeService.listActive(),
       notificationService.adminHistory(),
     ]);
-    setEmployees(staff.filter((employee) => employee.role === 'staff'));
+    setEmployees(staff.filter((employee) => employee.role !== 'admin'));
     setHistory(items);
   };
 

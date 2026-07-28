@@ -106,7 +106,7 @@ Deno.serve(async (req: Request) => {
         login_email: account.loginEmail,
         name,
         phone,
-        role: 'staff',
+        role: 'employee',
         position,
         wage_type: wageType,
         hourly_wage: wageType === 'hourly' ? hourlyWage : null,

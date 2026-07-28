@@ -17,7 +17,7 @@ create table if not exists public.employees (
   login_email text unique not null,
   name text not null,
   phone text not null,
-  role text not null default 'staff' check (role in ('admin', 'staff')),
+  role text not null default 'employee' check (role in ('admin', 'manager', 'employee')),
   position text not null default '',
   wage_type text not null default 'hourly' check (wage_type in ('hourly', 'monthly')),
   hourly_wage numeric,

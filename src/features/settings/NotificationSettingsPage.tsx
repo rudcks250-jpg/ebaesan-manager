@@ -9,15 +9,16 @@ import {
   notificationService,
   type NotificationPreferences,
 } from '@/services/notificationService';
+import type { UserRole } from '@/data/types';
 
-const LABELS: Array<{ key: keyof NotificationPreferences; label: string; roles: Array<'admin' | 'staff'> }> = [
-  { key: 'scheduleEnabled', label: '스케줄 알림', roles: ['staff'] },
-  { key: 'noticeEnabled', label: '공지사항 알림', roles: ['staff'] },
-  { key: 'worktimeEnabled', label: '근무시간 입력 알림', roles: ['staff'] },
-  { key: 'leaveReminderEnabled', label: '다음 주 휴무 신청 알림', roles: ['staff'] },
-  { key: 'leaveResultEnabled', label: '휴무 승인·반려 알림', roles: ['staff'] },
-  { key: 'payrollEnabled', label: '급여일 알림', roles: ['staff'] },
-  { key: 'orderEnabled', label: '발주 확인 알림', roles: ['admin'] },
+const LABELS: Array<{ key: keyof NotificationPreferences; label: string; roles: UserRole[] }> = [
+  { key: 'scheduleEnabled', label: '스케줄 알림', roles: ['manager', 'employee'] },
+  { key: 'noticeEnabled', label: '공지사항 알림', roles: ['manager', 'employee'] },
+  { key: 'worktimeEnabled', label: '근무시간 입력 알림', roles: ['manager', 'employee'] },
+  { key: 'leaveReminderEnabled', label: '다음 주 휴무 신청 알림', roles: ['manager', 'employee'] },
+  { key: 'leaveResultEnabled', label: '휴무 승인·반려 알림', roles: ['manager', 'employee'] },
+  { key: 'payrollEnabled', label: '급여일 알림', roles: ['manager', 'employee'] },
+  { key: 'orderEnabled', label: '발주 확인 알림', roles: ['admin', 'manager'] },
   { key: 'leaveRequestAdminEnabled', label: '직원 휴무 신청 알림', roles: ['admin'] },
 ];
 

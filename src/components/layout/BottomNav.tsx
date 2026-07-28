@@ -35,7 +35,7 @@ const ADMIN_PRIMARY: NavItem[] = [
 ];
 
 // 직원 모드(실제 직원 또는 관리자의 직원 모드 미리보기) - 대시보드/스케줄/휴무신청/근로시간/로그아웃 5개만 직접 노출
-const STAFF_TABS: NavItem[] = [
+const EMPLOYEE_TABS: NavItem[] = [
   { to: '/dashboard', label: '대시보드', icon: LayoutDashboard, feature: 'dashboard' },
   { to: '/schedule', label: '스케줄', icon: CalendarDays, feature: 'schedule' },
   { to: '/leave', label: '휴무신청', icon: Coffee, feature: 'leave' },
@@ -53,18 +53,23 @@ const GRID_COLS: Record<number, string> = {
 };
 
 export function BottomNav() {
-  const { session, effectiveRole, isStaffPreview, enterStaffPreview, logout } = useAuth();
+  const { session, effectiveRole, enterStaffPreview, logout } = useAuth();
   const navigate = useNavigate();
   const [moreOpen, setMoreOpen] = useState(false);
 
   const isRealAdmin = session?.role === 'admin';
 
-  // 직원 모드(실제 직원 로그인 또는 관리자의 직원 모드 미리보기): 5개 탭 고정, 더보기 없음
-  if (effectiveRole === 'staff') {
+  // 직원 계열 화면: 매니저에게만 발주관리 탭을 추가합니다.
+  if (effectiveRole === 'employee' || effectiveRole === 'manager') {
+    const workerTabs =
+      effectiveRole === 'manager'
+        ? [...EMPLOYEE_TABS.slice(0, 3), ADMIN_PRIMARY[3], ...EMPLOYEE_TABS.slice(3)]
+        : EMPLOYEE_TABS;
+    const totalWorkerCols = workerTabs.length + 1;
     return (
       <nav className="sm:hidden fixed bottom-3 left-3 right-3 z-40 bg-surface/88 backdrop-blur-2xl border border-white/80 rounded-[22px] shadow-premium-lg pb-[env(safe-area-inset-bottom)] overflow-hidden">
-        <div className="grid grid-cols-6">
-          {STAFF_TABS.map((item) => {
+        <div className={`grid ${GRID_COLS[totalWorkerCols] ?? 'grid-cols-6'}`}>
+          {workerTabs.map((item) => {
             const Icon = item.icon;
             return (
               <NavLink

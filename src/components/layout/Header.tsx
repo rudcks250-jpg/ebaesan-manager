@@ -10,7 +10,7 @@ export function Header({ title, showGreeting = true }: { title: string; showGree
         <p className="text-[28px] leading-tight font-bold text-ink tracking-[-0.035em]">{title}</p>
         {showGreeting && (
           <p className="text-xs text-ink-soft mt-1">
-            {session?.name}님 · {session?.role === 'admin' ? '대표' : '직원'}
+            {session?.name}님 · {session?.role === 'admin' ? '대표' : session?.role === 'manager' ? '매니저' : '직원'}
           </p>
         )}
       </div>

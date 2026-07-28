@@ -107,7 +107,7 @@ export const employeeRepository = {
       const commonValues = {
         name: employee.name,
         phone: employee.phone,
-        role: 'staff',
+        role: 'employee',
         position: employee.position,
         wage_type: employee.wageType,
         payday: employee.payday,
