@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Modal } from '@/components/common/Modal';
 import { Button } from '@/components/common/Button';
-import { Input, Textarea } from '@/components/common/Input';
+import { Textarea } from '@/components/common/Input';
 import { ScheduleTimeSelector } from '@/features/schedule/ScheduleTimeSelector';
 import { workTimeService } from '@/services/workTimeService';
 import { useToast } from '@/components/common/Toast';
@@ -31,7 +31,6 @@ export function WorkTimeEntryModal({
   const { showToast } = useToast();
   const [clockIn, setClockIn] = useState(existing?.clockIn ?? '');
   const [clockOut, setClockOut] = useState(existing?.clockOut ?? '');
-  const [breakMinutes, setBreakMinutes] = useState(String(existing?.breakMinutes ?? 30));
   const [memo, setMemo] = useState(existing?.memo ?? '');
   const [error, setError] = useState('');
   const [preview, setPreview] = useState<number | null>(existing?.workedMinutes ?? null);
@@ -56,7 +55,7 @@ export function WorkTimeEntryModal({
           date,
           clockIn,
           clockOut,
-          breakMinutes: Number(breakMinutes) || 0,
+          breakMinutes: existing?.breakMinutes ?? 0,
           memo: memo.trim() || undefined,
         },
         editedBy
@@ -113,12 +112,6 @@ export function WorkTimeEntryModal({
         showStatus={false}
       />
       <div className="mt-4" />
-      <Input
-        label="휴게시간 (분)"
-        type="number"
-        value={breakMinutes}
-        onChange={(e) => setBreakMinutes(e.target.value)}
-      />
       <Textarea label="메모 (선택)" value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="특이사항이 있다면 입력해주세요" />
       {error && <p className="text-xs text-status-rejected -mt-2 mb-3">{error}</p>}
       {preview !== null && !error && (
