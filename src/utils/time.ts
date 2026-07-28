@@ -32,6 +32,12 @@ export function minutesToHourText(minutes: number | null | undefined): string {
   return `${h}시간 ${m}분`;
 }
 
+export function minutesToCompactHourText(minutes: number | null | undefined): string {
+  if (minutes === null || minutes === undefined) return '미입력';
+  const hours = Number((minutes / 60).toFixed(2));
+  return `${hours}시간`;
+}
+
 export function minutesToDecimalHours(minutes: number): number {
   return Math.round((minutes / 60) * 100) / 100;
 }

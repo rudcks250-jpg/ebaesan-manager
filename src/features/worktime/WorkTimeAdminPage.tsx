@@ -11,7 +11,7 @@ import { scheduleService } from '@/services/scheduleService';
 import { payrollService } from '@/services/payrollService';
 import { WorkTimeEntryModal } from '@/features/worktime/WorkTimeEntryModal';
 import { getMondayOfWeekStr, formatMonthDay, getWeekdayLabel } from '@/utils/date';
-import { minutesToHourText } from '@/utils/time';
+import { minutesToCompactHourText, minutesToHourText } from '@/utils/time';
 
 export function WorkTimeAdminPage() {
   const { session } = useAuth();
@@ -185,11 +185,8 @@ export function WorkTimeAdminPage() {
                 <p className="font-semibold text-ink text-sm">
                   {formatMonthDay(r.date)} ({getWeekdayLabel(r.date)})
                 </p>
-                <p className="text-xs text-ink-soft mt-0.5">
-                  {r.clockIn ?? '-'} ~ {r.clockOut ?? '-'} · 휴게 {r.breakMinutes}분
-                </p>
               </div>
-              <Badge tone="working">{minutesToHourText(r.workedMinutes)}</Badge>
+              <Badge tone="working">{minutesToCompactHourText(r.workedMinutes)}</Badge>
             </Card>
           ))}
         </div>

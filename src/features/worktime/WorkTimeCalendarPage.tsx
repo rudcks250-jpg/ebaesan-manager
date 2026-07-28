@@ -7,7 +7,7 @@ import { workTimeService } from '@/services/workTimeService';
 import { WorkTimeEntryModal } from '@/features/worktime/WorkTimeEntryModal';
 import { MyPayrollCard } from '@/features/payroll/MyPayrollCard';
 import { getMonthDates, todayStr, parseDate, WEEKDAY_LABELS_KO } from '@/utils/date';
-import { minutesToHourText } from '@/utils/time';
+import { minutesToCompactHourText, minutesToHourText } from '@/utils/time';
 import { Clock3, Coffee, Timer } from 'lucide-react';
 
 export function WorkTimeCalendarPage({ employeeId }: { employeeId: string }) {
@@ -114,7 +114,7 @@ export function WorkTimeCalendarPage({ employeeId }: { employeeId: string }) {
           {dates.map((d) => {
             const record = recordOf(d);
             const dayNum = Number(d.slice(-2));
-            const hasEntry = !!record?.workedMinutes;
+            const hasEntry = record?.workedMinutes !== null && record?.workedMinutes !== undefined;
             return (
               <button
                 key={d}
@@ -125,7 +125,9 @@ export function WorkTimeCalendarPage({ employeeId }: { employeeId: string }) {
               >
                 <span className="font-semibold text-ink">{dayNum}</span>
                 {hasEntry ? (
-                  <span className="text-[9px] text-status-working">입력됨</span>
+                  <span className="text-[9px] font-semibold text-status-working">
+                    {minutesToCompactHourText(record?.workedMinutes)}
+                  </span>
                 ) : (
                   <span className="text-[9px] text-ink-faint">미입력</span>
                 )}
