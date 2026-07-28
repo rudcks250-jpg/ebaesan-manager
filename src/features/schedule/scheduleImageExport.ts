@@ -44,7 +44,7 @@ export async function exportSchedulePng(element: HTMLDivElement, filename: strin
   const file = new File([blob], filename, { type: 'image/png' });
   const mobile = window.matchMedia('(pointer: coarse)').matches;
   if (mobile && navigator.share && navigator.canShare?.({ files: [file] })) {
-    await navigator.share({ title: '이배산 숯불구이 직원 근무 스케줄', files: [file] });
+    await navigator.share({ title: '이배산 숯불구이 근무표', files: [file] });
     return;
   }
 

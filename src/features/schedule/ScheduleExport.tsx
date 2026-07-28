@@ -4,7 +4,7 @@ import { getEmployeeAccent } from '@/utils/employeeAccent';
 import { parseDate } from '@/utils/date';
 import type { Employee, ShiftEntry } from '@/data/types';
 
-const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
 function shortTime(value: string) {
   const [hours, minutes] = value.split(':');
@@ -28,25 +28,22 @@ export const ScheduleExport = forwardRef<HTMLDivElement, {
         position: 'fixed',
         left: '-10000px',
         top: 0,
-        width: 1400,
-        padding: 56,
+        width: 1320,
+        padding: 28,
         background: '#F5F5F7',
         color: '#111111',
         fontFamily: '"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, sans-serif',
       }}
     >
-      <div style={{ overflow: 'hidden', borderRadius: 32, background: '#FFFFFF', padding: 42, boxShadow: '0 18px 55px rgba(0,0,0,.10)' }}>
-        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 34 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-            <div style={{ display: 'flex', width: 58, height: 58, alignItems: 'center', justifyContent: 'center', borderRadius: 18, color: '#FFFFFF', background: 'linear-gradient(145deg,#38A0FF,#007AFF)' }}>
-              <Flame size={29} fill="currentColor" />
+      <div style={{ overflow: 'hidden', borderRadius: 24, background: '#FFFFFF', padding: 28, boxShadow: '0 14px 38px rgba(0,0,0,.08)' }}>
+        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 13, color: '#FFFFFF', background: 'linear-gradient(145deg,#38A0FF,#007AFF)' }}>
+              <Flame size={22} fill="currentColor" />
             </div>
-            <div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: '#007AFF' }}>이배산 숯불구이</div>
-              <div style={{ marginTop: 4, fontSize: 31, fontWeight: 850, letterSpacing: '-0.04em' }}>직원 근무 스케줄</div>
-            </div>
+            <div style={{ fontSize: 27, fontWeight: 800, letterSpacing: '-0.035em' }}>이배산 숯불구이 근무표</div>
           </div>
-          <div style={{ borderRadius: 16, background: '#F2F2F7', padding: '12px 18px', fontSize: 17, fontWeight: 750, color: '#6E6E73' }}>
+          <div style={{ borderRadius: 14, background: '#F2F2F7', padding: '9px 16px', fontSize: 17, fontWeight: 700, color: '#6E6E73' }}>
             {rangeLabel}
           </div>
         </header>
@@ -54,14 +51,15 @@ export const ScheduleExport = forwardRef<HTMLDivElement, {
         <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0 }}>
           <thead>
             <tr>
-              <th style={{ width: 150, padding: '14px 16px', textAlign: 'left', fontSize: 12, letterSpacing: '.1em', color: '#8E8E93' }}>직원</th>
+              <th style={{ width: 128, padding: '10px 10px', textAlign: 'left', fontSize: 12, letterSpacing: '.08em', color: '#8E8E93' }}>직원</th>
               {weekDates.map((date) => {
                 const parsed = parseDate(date);
                 const day = parsed.getDay();
                 return (
-                  <th key={date} style={{ padding: '12px 6px', textAlign: 'center', background: day === 0 ? '#FFF7F7' : day === 6 ? '#F8F8FA' : '#FFFFFF' }}>
-                    <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.11em', color: day === 0 ? '#C56A65' : '#8E8E93' }}>{WEEKDAYS[day]}</div>
-                    <div style={{ marginTop: 3, fontSize: 22, fontWeight: 850 }}>{parsed.getDate()}</div>
+                  <th key={date} style={{ padding: '10px 6px', textAlign: 'center', background: day === 0 ? '#FFF7F7' : day === 6 ? '#F8F8FA' : '#FFFFFF' }}>
+                    <span style={{ fontSize: 17, fontWeight: 800, color: day === 0 ? '#C56A65' : '#55555A' }}>
+                      {WEEKDAYS[day]} {parsed.getDate()}
+                    </span>
                   </th>
                 );
               })}
@@ -72,9 +70,9 @@ export const ScheduleExport = forwardRef<HTMLDivElement, {
               const accent = getEmployeeAccent(employee.name);
               return (
                 <tr key={employee.id}>
-                  <td style={{ height: 58, borderTop: rowIndex ? '1px solid rgba(0,0,0,.045)' : 'none', padding: '7px 16px', fontSize: 17, fontWeight: 800 }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-                      <span style={{ width: 9, height: 9, borderRadius: 99, background: accent.dotColor }} />
+                  <td style={{ height: 48, borderTop: rowIndex ? '1px solid rgba(0,0,0,.045)' : 'none', padding: '4px 10px', fontSize: 16, fontWeight: 700 }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: 99, background: accent.dotColor }} />
                       {employee.name}
                     </span>
                   </td>
@@ -83,16 +81,14 @@ export const ScheduleExport = forwardRef<HTMLDivElement, {
                     const day = parseDate(date).getDay();
                     const working = shift?.status === 'working' && shift.startTime && shift.endTime;
                     return (
-                      <td key={date} style={{ height: 58, borderTop: rowIndex ? '1px solid rgba(0,0,0,.045)' : 'none', padding: '6px', textAlign: 'center', background: day === 0 ? '#FFF7F7' : day === 6 ? '#F8F8FA' : '#FFFFFF' }}>
+                      <td key={date} style={{ height: 48, borderTop: rowIndex ? '1px solid rgba(0,0,0,.045)' : 'none', padding: '3px', textAlign: 'center', background: day === 0 ? '#FFF7F7' : day === 6 ? '#F8F8FA' : '#FFFFFF' }}>
                         {working ? (
-                          <span style={{ display: 'flex', minHeight: 42, alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 14, background: accent.backgroundColor, color: accent.color, fontSize: 15, fontWeight: 850 }}>
+                          <span style={{ display: 'flex', minHeight: 38, padding: '0 14px', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 12, background: accent.backgroundColor, color: accent.color, fontSize: 17, fontWeight: 600 }}>
                             <span style={{ width: 7, height: 7, borderRadius: 99, background: accent.dotColor }} />
                             {shortTime(shift.startTime!)}-{shortTime(shift.endTime!)}
                           </span>
-                        ) : shift ? (
-                          <span style={{ display: 'flex', minHeight: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 14, background: '#FFF0EF', color: '#B34E47', fontSize: 14, fontWeight: 800 }}>휴무</span>
                         ) : (
-                          <span style={{ color: '#C7C7CC', fontSize: 17 }}>—</span>
+                          <span style={{ color: '#9CA3AF', fontSize: 15, fontWeight: 500 }}>휴무</span>
                         )}
                       </td>
                     );
