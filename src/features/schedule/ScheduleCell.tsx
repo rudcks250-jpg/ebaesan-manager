@@ -54,9 +54,7 @@ export function ScheduleCell({
       aria-label={
         working
           ? `${startLabel}부터 ${endLabel}까지 근무`
-          : status === 'unscheduled'
-            ? '스케줄 추가'
-            : '휴무'
+          : '휴무'
       }
       className={`group/cell flex min-h-11 w-full touch-pan-y select-none items-center justify-center rounded-[16px] px-1.5 transition-all duration-150 ${
         clickable ? 'cursor-pointer hover:bg-brand-red-light/45 active:scale-[.98]' : 'cursor-default'
@@ -72,10 +70,6 @@ export function ScheduleCell({
         >
           <span className={`h-2 w-2 shrink-0 rounded-full ${accent.dot}`} aria-hidden="true" />
           {shortTime(startLabel)}-{shortTime(endLabel)}
-        </span>
-      ) : status === 'unscheduled' ? (
-        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#F0F1F3] text-base font-medium text-ink-faint transition-all duration-150 group-hover/cell:bg-brand-red group-hover/cell:text-white group-hover/cell:shadow-[0_6px_14px_-8px_rgba(0,122,255,.8)]">
-          ＋
         </span>
       ) : (
         <span className="flex min-h-10 w-full items-center justify-center gap-2 rounded-[14px] bg-[#FFF0EF] px-3 py-1.5 text-[13px] font-bold text-[#B34E47] transition-all duration-150 group-hover/cell:-translate-y-0.5">
