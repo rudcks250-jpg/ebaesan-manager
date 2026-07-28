@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'ebaesan-shell-v3';
+const CACHE_VERSION = 'ebaesan-shell-v4';
 const APP_SHELL = '/';
 
 self.addEventListener('install', (event) => {
@@ -52,13 +52,15 @@ self.addEventListener('push', (event) => {
   const notification = payload.notification ?? {};
   const title = data.title ?? notification.title ?? '이배산 알림';
   const body = data.body ?? notification.body ?? '';
-  const link = data.link ?? payload.fcmOptions?.link ?? '/';
+  const rawLink = data.link ?? payload.fcmOptions?.link ?? '/';
+  const link = new URL(rawLink, self.location.origin);
+  if (data.jobId) link.searchParams.set('notificationJob', data.jobId);
 
   event.waitUntil(self.registration.showNotification(title, {
     body,
     icon: '/icon-192x192-v2.png',
     badge: '/favicon-32x32-v2.png',
-    data: { link },
+    data: { link: link.href },
     tag: data.jobId ? `ebaesan-${data.jobId}` : undefined,
     renotify: false,
   }));

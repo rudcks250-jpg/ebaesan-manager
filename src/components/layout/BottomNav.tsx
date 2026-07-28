@@ -12,6 +12,7 @@ import {
   UserCircle2,
   MoreHorizontal,
   Settings,
+  BellRing,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { canAccess, type FeatureKey } from '@/utils/permission';
@@ -113,6 +114,17 @@ export function BottomNav() {
               >
                 <Settings size={21} className="text-ink" strokeWidth={2} />
                 <span className="text-xs font-semibold text-ink">알림 설정</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setMoreOpen(false);
+                  navigate('/notifications');
+                }}
+                className="flex flex-col items-center gap-1.5 py-4 rounded-2xl hover:bg-brand-beige-light press-scale"
+              >
+                <BellRing size={21} className="text-ink" strokeWidth={2} />
+                <span className="text-xs font-semibold text-ink">알림 관리</span>
               </button>
 
               <button

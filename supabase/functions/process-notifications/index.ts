@@ -235,6 +235,7 @@ Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'POST 요청만 허용됩니다.' }, 405);
 
+  let adminForLogging: any;
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -245,6 +246,7 @@ Deno.serve(async (req: Request) => {
     const admin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
+    adminForLogging = admin;
     const isCron = !!cronSecret && req.headers.get('x-cron-secret') === cronSecret;
     if (!isCron) {
       const caller = createClient(supabaseUrl, anonKey, {
@@ -261,6 +263,7 @@ Deno.serve(async (req: Request) => {
     const webPushPublic = Deno.env.get('WEB_PUSH_VAPID_PUBLIC_KEY');
     const webPushPrivate = Deno.env.get('WEB_PUSH_VAPID_PRIVATE_KEY');
     const webPushSubject = Deno.env.get('WEB_PUSH_SUBJECT') || 'mailto:admin@ebaesan.local';
+    const pushEnvironment = Deno.env.get('PUSH_ENVIRONMENT') || 'production';
     if (webPushPublic && webPushPrivate) {
       webpush.setVapidDetails(webPushSubject, webPushPublic, webPushPrivate);
     }
@@ -269,16 +272,24 @@ Deno.serve(async (req: Request) => {
     const { data: jobs, error: jobsError } = await admin
       .from('notification_jobs')
       .select('*')
-      .eq('status', 'pending')
+      .in('status', ['pending', 'failed'])
       .lte('scheduled_for', new Date().toISOString())
+      .lte('next_attempt_at', new Date().toISOString())
       .order('created_at')
-      .limit(100);
+      .limit(500);
     if (jobsError) throw jobsError;
 
     let sent = 0;
     let failed = 0;
-    for (const job of jobs ?? []) {
-      await admin.from('notification_jobs').update({ status: 'processing' }).eq('id', job.id).eq('status', 'pending');
+    const runnableJobs = (jobs ?? []).filter((job: any) =>
+      job.status === 'pending' || Number(job.attempt_count ?? 0) < Number(job.max_attempts ?? 5)
+    ).slice(0, 100);
+    for (const job of runnableJobs) {
+      const attemptCount = Number(job.attempt_count ?? 0) + 1;
+      await admin.from('notification_jobs').update({
+        status: 'processing',
+        attempt_count: attemptCount,
+      }).eq('id', job.id);
       let employeeIds: string[] = [];
       if (job.recipient_employee_id) {
         employeeIds = [job.recipient_employee_id];
@@ -291,12 +302,15 @@ Deno.serve(async (req: Request) => {
         .from('push_subscriptions')
         .select('*')
         .in('employee_id', employeeIds)
+        .eq('environment', pushEnvironment)
         .eq('active', true);
       const authUserIds = [...new Set((subscriptions ?? []).map((row: any) => row.auth_user_id))];
       const { data: preferences } = authUserIds.length
         ? await admin.from('notification_preferences').select('*').in('auth_user_id', authUserIds)
         : { data: [] };
       const preferenceByUser = new Map((preferences ?? []).map((row: any) => [row.auth_user_id, row]));
+      let jobFailed = (subscriptions ?? []).length === 0;
+      let lastError = jobFailed ? '활성화된 Push Token이 없습니다.' : null;
 
       for (const subscription of subscriptions ?? []) {
         const preference = preferenceByUser.get(subscription.auth_user_id);
@@ -305,11 +319,11 @@ Deno.serve(async (req: Request) => {
 
         const { data: existing } = await admin
           .from('notification_deliveries')
-          .select('id')
+          .select('id,status,attempt_count')
           .eq('job_id', job.id)
           .eq('subscription_id', subscription.id)
           .maybeSingle();
-        if (existing) continue;
+        if (existing?.status === 'sent') continue;
 
         try {
           let providerMessageId: string | undefined;
@@ -326,32 +340,82 @@ Deno.serve(async (req: Request) => {
             }));
             providerMessageId = result?.headers?.location;
           }
-          await admin.from('notification_deliveries').insert({
-            job_id: job.id, subscription_id: subscription.id, status: 'sent',
-            provider_message_id: providerMessageId,
-          });
+          if (existing) {
+            await admin.from('notification_deliveries').update({
+              status: 'sent',
+              provider_message_id: providerMessageId,
+              error_message: null,
+              attempt_count: Number(existing.attempt_count ?? 0) + 1,
+              last_attempt_at: new Date().toISOString(),
+              sent_at: new Date().toISOString(),
+            }).eq('id', existing.id);
+          } else {
+            await admin.from('notification_deliveries').insert({
+              job_id: job.id, subscription_id: subscription.id, status: 'sent',
+              provider_message_id: providerMessageId,
+            });
+          }
           sent += 1;
         } catch (error) {
           const status = Number((error as any)?.statusCode || (error as any)?.status);
           if (status === 404 || status === 410) {
             await admin.from('push_subscriptions').update({ active: false }).eq('id', subscription.id);
           }
-          await admin.from('notification_deliveries').insert({
-            job_id: job.id, subscription_id: subscription.id, status: 'failed',
-            error_message: error instanceof Error ? error.message : String(error),
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          jobFailed = true;
+          lastError = errorMessage;
+          if (existing) {
+            await admin.from('notification_deliveries').update({
+              status: 'failed',
+              error_message: errorMessage,
+              attempt_count: Number(existing.attempt_count ?? 0) + 1,
+              last_attempt_at: new Date().toISOString(),
+            }).eq('id', existing.id);
+          } else {
+            await admin.from('notification_deliveries').insert({
+              job_id: job.id, subscription_id: subscription.id, status: 'failed',
+              error_message: errorMessage,
+            });
+          }
+          await admin.from('notification_error_logs').insert({
+            job_id: job.id,
+            subscription_id: subscription.id,
+            stage: subscription.channel,
+            error_message: errorMessage,
+            context: { attempt: attemptCount, kind: job.kind },
           });
           failed += 1;
         }
       }
-      await admin.from('notification_jobs').update({
-        status: 'sent', processed_at: new Date().toISOString(), last_error: null,
+      const retryMinutes = Math.min(60, 2 ** attemptCount);
+      await admin.from('notification_jobs').update(jobFailed ? {
+        status: 'failed',
+        next_attempt_at: new Date(Date.now() + retryMinutes * 60_000).toISOString(),
+        last_error: lastError,
+        processed_at: attemptCount >= Number(job.max_attempts ?? 5) ? new Date().toISOString() : null,
+      } : {
+        status: 'sent',
+        processed_at: new Date().toISOString(),
+        last_error: null,
       }).eq('id', job.id);
     }
-    return json({ jobs: jobs?.length ?? 0, sent, failed, configured: {
+    return json({ jobs: runnableJobs.length, sent, failed, configured: {
       fcm: !!serviceAccount,
       webPush: !!(webPushPublic && webPushPrivate),
     } });
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : '알림 처리 실패' }, 500);
+    const errorMessage = error instanceof Error ? error.message : '알림 처리 실패';
+    if (adminForLogging) {
+      try {
+        await adminForLogging.from('notification_error_logs').insert({
+          stage: 'function',
+          error_message: errorMessage,
+          context: { path: new URL(req.url).pathname },
+        });
+      } catch {
+        // 원본 오류 응답을 유지합니다.
+      }
+    }
+    return json({ error: errorMessage }, 500);
   }
 });

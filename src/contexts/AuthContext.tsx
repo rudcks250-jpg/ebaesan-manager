@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { authService } from '@/services/authService';
 import { employeeRepository } from '@/repositories/employeeRepository';
 import type { AuthSession } from '@/data/types';
+import { notificationService } from '@/services/notificationService';
 
 interface AuthContextValue {
   session: AuthSession | null;
@@ -69,6 +70,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (!session || requirePasswordChange) return;
+    void notificationService.refreshExisting(session.employeeId).catch(() => undefined);
+  }, [requirePasswordChange, session]);
+
   const login = useCallback(async (name: string, password: string) => {
     const result = await authService.login(name, password);
     if (result.success && result.session) {
@@ -79,6 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    await notificationService.removeCurrentDevice().catch(() => undefined);
     await authService.logout();
     setSession(null);
     setRequirePasswordChange(false);

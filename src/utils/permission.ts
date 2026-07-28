@@ -8,7 +8,8 @@ export type FeatureKey =
   | 'leave'
   | 'worktime'
   | 'order'
-  | 'settings';
+  | 'settings'
+  | 'notifications';
 
 // 기능별 접근 가능 역할. 이 테이블 하나로 라우트 가드 + 네비게이션 노출을 함께 제어합니다.
 const FEATURE_ACCESS: Record<FeatureKey, UserRole[]> = {
@@ -20,6 +21,7 @@ const FEATURE_ACCESS: Record<FeatureKey, UserRole[]> = {
   worktime: ['admin', 'staff'],
   order: ['admin'], // 직원은 접근 비활성 (현재 정책)
   settings: ['admin', 'staff'],
+  notifications: ['admin'],
 };
 
 export function canAccess(role: UserRole | undefined, feature: FeatureKey): boolean {

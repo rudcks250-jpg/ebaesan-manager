@@ -12,6 +12,8 @@ create table if not exists public.push_subscriptions (
   id uuid primary key default gen_random_uuid(),
   auth_user_id uuid not null references auth.users(id) on delete cascade,
   employee_id uuid not null references public.employees(id) on delete cascade,
+  device_id text not null,
+  environment text not null default 'production' check (environment in ('development', 'production')),
   channel text not null check (channel in ('fcm', 'web_push')),
   subscription_key text not null,
   token text,
@@ -24,7 +26,8 @@ create table if not exists public.push_subscriptions (
   last_seen_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (auth_user_id, subscription_key)
+  unique (auth_user_id, subscription_key),
+  unique (auth_user_id, device_id, channel, environment)
 );
 
 create table if not exists public.notification_preferences (

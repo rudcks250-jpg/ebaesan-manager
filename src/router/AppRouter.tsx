@@ -11,6 +11,7 @@ import { LeavePage } from '@/features/leave/LeavePage';
 import { WorkTimePage } from '@/features/worktime/WorkTimePage';
 import { OrderPage } from '@/features/order/OrderPage';
 import { NotificationSettingsPage } from '@/features/settings/NotificationSettingsPage';
+import { NotificationAdminPage } from '@/features/settings/NotificationAdminPage';
 
 function LoginRoute() {
   const { session, sessionLoading } = useAuth();
@@ -93,6 +94,14 @@ export function AppRouter() {
           element={
             <RequireAuth feature="settings">
               <NotificationSettingsPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/notifications"
+          element={
+            <RequireAuth feature="notifications">
+              <NotificationAdminPage />
             </RequireAuth>
           }
         />

@@ -11,6 +11,8 @@ interface ImportMetaEnv {
   readonly VITE_FIREBASE_APP_ID?: string;
   readonly VITE_FIREBASE_VAPID_PUBLIC_KEY?: string;
   readonly VITE_WEB_PUSH_VAPID_PUBLIC_KEY?: string;
+  readonly VITE_PUSH_ENABLED?: string;
+  readonly VITE_PUSH_ENVIRONMENT?: 'development' | 'production';
 }
 
 interface ImportMeta {

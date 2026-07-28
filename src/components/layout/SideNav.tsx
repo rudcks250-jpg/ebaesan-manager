@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, CalendarDays, Coffee, Package, Users, Wallet, Clock, LogOut, UserCircle2, Flame, Settings } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, Coffee, Package, Users, Wallet, Clock, LogOut, UserCircle2, Flame, Settings, BellRing } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { canAccess, type FeatureKey } from '@/utils/permission';
 
@@ -20,6 +20,7 @@ const ALL_ITEMS: NavItem[] = [
   { to: '/payroll', label: '급여관리', icon: Wallet, feature: 'payroll' },
   { to: '/worktime', label: '근로시간', icon: Clock, feature: 'worktime' },
   { to: '/settings', label: '알림 설정', icon: Settings, feature: 'settings' },
+  { to: '/notifications', label: '알림 관리', icon: BellRing, feature: 'notifications' },
 ];
 
 export function SideNav() {
