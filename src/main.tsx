@@ -13,3 +13,34 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 )
+
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  const hadController = Boolean(navigator.serviceWorker.controller)
+  let refreshing = false
+
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (hadController && !refreshing) {
+      refreshing = true
+      window.location.reload()
+    }
+  })
+
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
+      .then((registration) => {
+        void registration.update()
+
+        registration.addEventListener('updatefound', () => {
+          const worker = registration.installing
+          worker?.addEventListener('statechange', () => {
+            if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+              worker.postMessage({ type: 'SKIP_WAITING' })
+            }
+          })
+        })
+      })
+      .catch((error) => {
+        console.error('서비스 워커 등록에 실패했습니다.', error)
+      })
+  })
+}

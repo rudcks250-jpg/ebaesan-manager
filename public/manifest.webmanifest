@@ -1,0 +1,19 @@
+{
+  "name": "이배산 업무관리 시스템",
+  "short_name": "이배산 관리",
+  "description": "이배산 숯불구이 업무관리 시스템",
+  "lang": "ko",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F5F5F7",
+  "theme_color": "#007AFF",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
