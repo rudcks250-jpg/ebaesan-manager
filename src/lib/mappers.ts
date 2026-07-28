@@ -7,7 +7,9 @@ export function rowToEmployee(row: any): Employee {
     id: row.id,
     name: row.name,
     phone: row.phone,
-    role: row.role,
+    // 역할 마이그레이션 적용 전의 운영 DB(`staff`)도 배포 순서와 무관하게
+    // 직원 권한으로 안전하게 동작하도록 정규화합니다.
+    role: row.role === 'staff' ? 'employee' : row.role,
     position: row.position,
     wageType: row.wage_type,
     hourlyWage: row.hourly_wage ?? undefined,
