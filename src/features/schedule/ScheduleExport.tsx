@@ -83,11 +83,28 @@ export const ScheduleExport = forwardRef<HTMLDivElement, {
                     return (
                       <td key={date} style={{ height: 48, borderTop: rowIndex ? '1px solid rgba(0,0,0,.045)' : 'none', padding: '3px', textAlign: 'center', background: day === 0 ? '#FFF7F7' : day === 6 ? '#F8F8FA' : '#FFFFFF' }}>
                         {working ? (
-                          <span style={{ display: 'flex', height: 38, boxSizing: 'border-box', padding: '0 14px', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 12, background: accent.backgroundColor, color: accent.color }}>
-                            <span aria-hidden="true" style={{ display: 'block', width: 7, height: 7, flex: '0 0 7px', borderRadius: 99, background: accent.dotColor }} />
-                            <span style={{ display: 'flex', height: 20, alignItems: 'center', justifyContent: 'center', fontSize: 17, fontWeight: 600, lineHeight: '20px', whiteSpace: 'nowrap' }}>
-                              {shortTime(shift.startTime!)}-{shortTime(shift.endTime!)}
-                            </span>
+                          <span style={{ display: 'block', height: 38, boxSizing: 'border-box', padding: '0 8px', borderRadius: 12, background: accent.backgroundColor, color: accent.color }}>
+                            <svg
+                              width="100%"
+                              height="38"
+                              viewBox="0 0 160 38"
+                              preserveAspectRatio="xMidYMid meet"
+                              aria-label={`${shortTime(shift.startTime!)}-${shortTime(shift.endTime!)}`}
+                            >
+                              <text
+                                x="80"
+                                y="19"
+                                fill={accent.color}
+                                fontFamily="Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
+                                fontSize="17"
+                                fontWeight="600"
+                                textAnchor="middle"
+                                dominantBaseline="central"
+                              >
+                                <tspan fill={accent.dotColor}>●</tspan>
+                                <tspan>　{shortTime(shift.startTime!)}-{shortTime(shift.endTime!)}</tspan>
+                              </text>
+                            </svg>
                           </span>
                         ) : (
                           <span style={{ color: '#9CA3AF', fontSize: 15, fontWeight: 500 }}>휴무</span>
