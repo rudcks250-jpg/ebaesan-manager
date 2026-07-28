@@ -1,18 +1,16 @@
 import { noticeRepository } from '@/repositories/noticeRepository';
-import { generateId } from '@/utils/id';
-import { nowIso } from '@/utils/date';
+import { notificationService } from '@/services/notificationService';
 
 export const noticeService = {
-  list() {
+  async list() {
     return noticeRepository.findAll();
   },
-  create(title: string, content: string, createdBy: string) {
-    noticeRepository.insert({
-      id: generateId('notice'),
-      title,
-      content,
-      createdAt: nowIso(),
-      createdBy,
-    });
+  async create(title: string, content: string) {
+    const notice = await noticeRepository.create(title, content);
+    await notificationService.dispatch();
+    return notice;
+  },
+  async migrateLocal(createdBy: string) {
+    return noticeRepository.migrateLocal(createdBy);
   },
 };

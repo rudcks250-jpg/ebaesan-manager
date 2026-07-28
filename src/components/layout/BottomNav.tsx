@@ -11,6 +11,7 @@ import {
   LogOut,
   UserCircle2,
   MoreHorizontal,
+  Settings,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { canAccess, type FeatureKey } from '@/utils/permission';
@@ -38,6 +39,7 @@ const STAFF_TABS: NavItem[] = [
   { to: '/schedule', label: '스케줄', icon: CalendarDays, feature: 'schedule' },
   { to: '/leave', label: '휴무신청', icon: Coffee, feature: 'leave' },
   { to: '/worktime', label: '근로시간', icon: Clock, feature: 'worktime' },
+  { to: '/settings', label: '알림설정', icon: Settings, feature: 'settings' },
 ];
 
 const GRID_COLS: Record<number, string> = {
@@ -60,7 +62,7 @@ export function BottomNav() {
   if (effectiveRole === 'staff') {
     return (
       <nav className="sm:hidden fixed bottom-3 left-3 right-3 z-40 bg-surface/88 backdrop-blur-2xl border border-white/80 rounded-[22px] shadow-premium-lg pb-[env(safe-area-inset-bottom)] overflow-hidden">
-        <div className="grid grid-cols-5">
+        <div className="grid grid-cols-6">
           {STAFF_TABS.map((item) => {
             const Icon = item.icon;
             return (
@@ -102,6 +104,17 @@ export function BottomNav() {
           <div className="absolute bottom-[68px] inset-x-0 bg-surface rounded-t-card border-t border-border p-5 pb-7 animate-sheet-in shadow-premium-lg">
             <p className="text-xs font-semibold text-ink-faint px-2 pb-3">더보기</p>
             <div className="grid grid-cols-3 gap-2">
+              <button
+                onClick={() => {
+                  setMoreOpen(false);
+                  navigate('/settings');
+                }}
+                className="flex flex-col items-center gap-1.5 py-4 rounded-2xl hover:bg-brand-beige-light press-scale"
+              >
+                <Settings size={21} className="text-ink" strokeWidth={2} />
+                <span className="text-xs font-semibold text-ink">알림 설정</span>
+              </button>
+
               <button
                 onClick={() => {
                   setMoreOpen(false);

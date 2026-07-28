@@ -1,5 +1,6 @@
 import { leaveRepository } from '@/repositories/leaveRepository';
 import { scheduleService } from '@/services/scheduleService';
+import { notificationService } from '@/services/notificationService';
 import { isNextWeek, nowIso } from '@/utils/date';
 import type { LeaveRequest } from '@/data/types';
 
@@ -49,6 +50,7 @@ export const leaveService = {
       reason: input.reason.trim(),
       status: 'pending',
     });
+    await notificationService.dispatch().catch(() => undefined);
     return { success: true, request };
   },
 
@@ -56,21 +58,25 @@ export const leaveService = {
     const request = await leaveRepository.findById(id);
     if (!request) return undefined;
     await scheduleService.setApprovedLeave(request.requestedDate, request.employeeId, adminId);
-    return leaveRepository.update(id, {
+    const updated = await leaveRepository.update(id, {
       status: 'approved',
       processedAt: nowIso(),
       processedBy: adminId,
       rejectReason: undefined,
     });
+    await notificationService.dispatch().catch(() => undefined);
+    return updated;
   },
 
   async reject(id: string, adminId: string, rejectReason: string): Promise<LeaveRequest | undefined> {
-    return leaveRepository.update(id, {
+    const updated = await leaveRepository.update(id, {
       status: 'rejected',
       rejectReason,
       processedAt: nowIso(),
       processedBy: adminId,
     });
+    await notificationService.dispatch().catch(() => undefined);
+    return updated;
   },
 
   async hasExistingWorkShift(date: string, employeeId: string): Promise<boolean> {

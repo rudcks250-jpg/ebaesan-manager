@@ -10,6 +10,7 @@ import { SchedulePage } from '@/features/schedule/SchedulePage';
 import { LeavePage } from '@/features/leave/LeavePage';
 import { WorkTimePage } from '@/features/worktime/WorkTimePage';
 import { OrderPage } from '@/features/order/OrderPage';
+import { NotificationSettingsPage } from '@/features/settings/NotificationSettingsPage';
 
 function LoginRoute() {
   const { session, sessionLoading } = useAuth();
@@ -84,6 +85,14 @@ export function AppRouter() {
           element={
             <RequireAuth feature="order">
               <OrderPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <RequireAuth feature="settings">
+              <NotificationSettingsPage />
             </RequireAuth>
           }
         />

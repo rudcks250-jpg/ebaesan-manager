@@ -11,6 +11,7 @@ import { exportSchedulePng } from '@/features/schedule/scheduleImageExport';
 import { useAuth } from '@/contexts/AuthContext';
 import { employeeService } from '@/services/employeeService';
 import { scheduleService } from '@/services/scheduleService';
+import { notificationService } from '@/services/notificationService';
 import {
   getMondayOfWeekStr,
   getWeekDates,
@@ -20,7 +21,7 @@ import {
   formatMonthDay,
 } from '@/utils/date';
 import type { Employee, ScheduleWeek, ShiftEntry } from '@/data/types';
-import { ChevronLeft, ChevronRight, ClipboardCopy, LoaderCircle, Trash2, Zap } from 'lucide-react';
+import { BellRing, ChevronLeft, ChevronRight, ClipboardCopy, LoaderCircle, Trash2, Zap } from 'lucide-react';
 
 const FIXED_EMPLOYEE_ORDER = [
   '박경찬',
@@ -57,6 +58,7 @@ export function SchedulePage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [processing, setProcessing] = useState<'copy' | 'delete' | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [selectedCell, setSelectedCell] = useState<string>();
   const [fixedScheduleSuppressedWeek, setFixedScheduleSuppressedWeek] = useState<string>();
   const exportRef = useRef<HTMLDivElement>(null);
@@ -219,10 +221,28 @@ export function SchedulePage() {
     }
   };
 
+  const handlePublishSchedule = async () => {
+    if (publishing) return;
+    setPublishing(true);
+    try {
+      const count = await notificationService.publishSchedule(weekStart);
+      showToast(count > 0 ? `스케줄을 배포하고 ${count}명에게 알림을 준비했습니다.` : '이미 배포된 주간 스케줄입니다.');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '스케줄 배포에 실패했습니다.', 'error');
+    } finally {
+      setPublishing(false);
+    }
+  };
+
   return (
     <Layout title="스케줄" showGreeting={false}>
       {isAdmin && (
         <div className="flex flex-wrap items-center justify-end gap-2 mb-4">
+          <Button size="sm" onClick={() => void handlePublishSchedule()} disabled={publishing}>
+            <span className="inline-flex items-center gap-1.5">
+              {publishing ? <LoaderCircle size={15} className="animate-spin" /> : <BellRing size={15} />} 스케줄 배포
+            </span>
+          </Button>
           <Button size="sm" variant="secondary" onClick={() => void handleShareSchedule()} disabled={exporting}>
             <span className="inline-flex items-center gap-1.5">
               {exporting ? <LoaderCircle size={15} className="animate-spin" /> : <span aria-hidden="true">📸</span>} 스케줄 공유
