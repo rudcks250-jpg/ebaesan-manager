@@ -1,0 +1,216 @@
+@import "tailwindcss";
+
+@theme {
+  /* ---- 이배산 브랜드 컬러 (Premium iOS 앱 톤) ---- */
+  --color-brand-red: #007AFF;
+  --color-brand-red-dark: #0066D6;
+  --color-brand-red-light: #EAF3FF;
+  --color-brand-beige: #D1D1D6;
+  --color-brand-beige-light: #F2F2F7;
+
+  --color-bg: #F5F5F7;
+  --color-surface: #FFFFFF;
+  --color-border: rgba(0, 0, 0, 0.06);
+
+  --color-ink: #111111;
+  --color-ink-soft: #6E6E73;
+  --color-ink-faint: #8E8E93;
+
+  /* ---- 상태 컬러 ---- */
+  --color-status-working: #248A3D;
+  --color-status-working-bg: #EAF8ED;
+  --color-status-off: #636366;
+  --color-status-off-bg: #F2F2F7;
+  --color-status-leave: #007AFF;
+  --color-status-leave-bg: #EAF3FF;
+  --color-status-pending: #C66A00;
+  --color-status-pending-bg: #FFF4E5;
+  --color-status-approved: #248A3D;
+  --color-status-approved-bg: #EAF8ED;
+  --color-status-rejected: #FF3B30;
+  --color-status-rejected-bg: #FFF0EF;
+
+  --font-sans: "Pretendard Variable", Pretendard, "SUIT Variable", SUIT, -apple-system, BlinkMacSystemFont,
+    "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+
+  /* Premium radius scale - 레퍼런스처럼 크고 둥글게 */
+  --radius-card: 1.5rem;
+  --radius-control: 0.875rem;
+  --radius-pill: 999px;
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+  background: var(--color-bg);
+}
+
+body {
+  background:
+    radial-gradient(circle at 78% -10%, rgba(0, 122, 255, 0.10), transparent 30rem),
+    radial-gradient(circle at 8% 95%, rgba(52, 199, 89, 0.06), transparent 28rem),
+    var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-width: 320px;
+  letter-spacing: -0.012em;
+}
+
+#root { min-height: 100vh; }
+
+.app-canvas {
+  position: relative;
+  isolation: isolate;
+}
+.app-canvas::before {
+  content: "";
+  position: fixed;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(17, 17, 17, 0.035) 0.6px, transparent 0.6px);
+  background-size: 18px 18px;
+  mask-image: linear-gradient(to bottom, black, transparent 70%);
+}
+
+.glass-surface {
+  background: rgba(255,255,255,.72);
+  backdrop-filter: blur(28px) saturate(150%);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
+  border: 1px solid rgba(255,255,255,.8);
+  box-shadow: 0 1px 2px rgba(0,0,0,.025), 0 22px 60px -36px rgba(0,0,0,.28);
+}
+
+.hero-surface {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 90% 5%, rgba(255,255,255,.28), transparent 16rem),
+    linear-gradient(135deg, #111827 0%, #16243c 56%, #063d76 100%);
+  color: white;
+}
+.hero-surface::after {
+  content: "";
+  position: absolute;
+  width: 260px;
+  height: 260px;
+  right: -80px;
+  bottom: -150px;
+  border: 40px solid rgba(255,255,255,.07);
+  border-radius: 50%;
+}
+
+.grouped-list > * + * { border-top: 1px solid rgba(0,0,0,.055); }
+
+.icon-well {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: .875rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+button, input, select, textarea { font: inherit; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 3px solid rgba(0, 122, 255, 0.25);
+  outline-offset: 2px;
+}
+::selection { background: rgba(0, 122, 255, 0.18); }
+
+/* 숫자는 SemiBold + 자간을 살짝 좁혀 프리미엄 느낌 */
+.tabular-num {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* 스크롤바를 살짝 다듬어 표 스크롤 UX 향상 */
+.scrollbar-thin::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: var(--color-brand-beige);
+  border-radius: 999px;
+}
+
+/* ---- Premium 그림자 (아주 은은하게, 다중 레이어) ---- */
+.shadow-premium {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.025),
+    0 8px 28px -16px rgba(0, 0, 0, 0.14);
+}
+.shadow-premium-lg {
+  box-shadow:
+    0 2px 5px rgba(0, 0, 0, 0.04),
+    0 24px 60px -20px rgba(0, 0, 0, 0.22);
+}
+
+/* ---- 카드 hover: 아주 살짝 확대 ---- */
+.card-hover {
+  transition: transform 0.22s ease-out, box-shadow 0.22s ease-out, border-color 0.22s ease-out;
+}
+.card-hover:hover {
+  transform: translateY(-2px) scale(1.01);
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.035),
+    0 20px 46px -18px rgba(0, 0, 0, 0.2);
+}
+.card-hover:hover .card-icon { transform: scale(1.08) rotate(-2deg); }
+.card-icon { transition: transform .22s ease-out; }
+
+/* ---- 버튼 press ---- */
+.press-scale {
+  transition: transform 0.18s ease-out, opacity 0.18s ease-out, background-color 0.18s ease-out,
+    color 0.18s ease-out, box-shadow 0.18s ease-out;
+}
+.press-scale:active {
+  transform: scale(0.98);
+}
+
+/* ---- 로그인 화면: 유효성 오류 시 shake ---- */
+@keyframes shakeX {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(7px); }
+  60% { transform: translateX(-5px); }
+  80% { transform: translateX(3px); }
+}
+
+/* ---- 페이지 전환 Fade ---- */
+@keyframes page-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-page-fade {
+  animation: page-fade-in 0.28s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* ---- Toast: 부드럽게 나타나기 ---- */
+@keyframes toast-in {
+  from { opacity: 0; transform: translate(-50%, 10px) scale(0.96); }
+  to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+.animate-toast-in {
+  animation: toast-in 0.28s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* ---- 모달 등장 ---- */
+@keyframes sheet-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-sheet-in {
+  animation: sheet-in 0.26s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
