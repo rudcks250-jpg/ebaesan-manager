@@ -1,10 +1,11 @@
-import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { ScheduleCell } from '@/features/schedule/ScheduleCell';
-import { parseDate, isToday } from '@/utils/date';
+import { parseDate, isToday, todayStr, getWeekdayLabel } from '@/utils/date';
 import { getEmployeeAccent } from '@/utils/employeeAccent';
 import type { Employee, ShiftEntry } from '@/data/types';
 
 const WEEKDAY_LABELS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+const MOBILE_WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
 const REQUIRED_TOTAL_BY_WEEKDAY: Record<number, number> = {
   0: 7,
   1: 7,
@@ -37,6 +38,11 @@ export function ScheduleGrid({
   onDragCopy,
 }: ScheduleGridProps) {
   const [previewDates, setPreviewDates] = useState<string[]>([]);
+  const [selectedMobileDate, setSelectedMobileDate] = useState(() => {
+    const today = todayStr();
+    return weekDates.includes(today) ? today : weekDates[0];
+  });
+  const mobileSwipeStartRef = useRef<{ x: number; y: number } | undefined>(undefined);
   const dragRef = useRef<{
     pointerId: number;
     employee: Employee;
@@ -50,6 +56,10 @@ export function ScheduleGrid({
   const suppressClickRef = useRef(false);
   const getShift = (employeeId: string, date: string) =>
     shifts.find((s) => s.employeeId === employeeId && s.date === date);
+  useEffect(() => {
+    const today = todayStr();
+    setSelectedMobileDate(weekDates.includes(today) ? today : weekDates[0]);
+  }, [weekDates]);
   const coverage = useMemo(
     () =>
       weekDates.map((date) => {
@@ -87,6 +97,13 @@ export function ScheduleGrid({
     if (day === 6) return 'bg-[#F8F8FA]';
     return '';
   };
+  const moveMobileDay = (delta: number) => {
+    const currentIndex = Math.max(0, weekDates.indexOf(selectedMobileDate));
+    const nextIndex = Math.max(0, Math.min(weekDates.length - 1, currentIndex + delta));
+    setSelectedMobileDate(weekDates[nextIndex]);
+  };
+  const selectedMobileCoverage =
+    coverage.find((item) => item.date === selectedMobileDate) ?? coverage[0];
 
   const updateDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const drag = dragRef.current;
@@ -264,81 +281,99 @@ export function ScheduleGrid({
         </table>
       </div>
 
-      <div className="grid gap-4 md:hidden">
-        {employees.map((employee) => (
-          <section
-            key={employee.id}
-            className="overflow-hidden rounded-[24px] bg-white/92 p-4 shadow-premium ring-1 ring-black/[0.035]"
-          >
-            <h3 className={`mb-3 flex items-center gap-2.5 px-1 text-[18px] font-bold ${employee.id === currentEmployeeId ? 'text-brand-red' : 'text-ink'}`}>
-              <span className={`h-2.5 w-2.5 rounded-full ${getEmployeeAccent(employee.name).dot}`} />
-              {employee.name}
+      <div className="space-y-4 md:hidden">
+        <section className="rounded-[24px] bg-white/92 p-3 shadow-premium ring-1 ring-black/[0.035]">
+          <div className="grid grid-cols-7 gap-1">
+            {weekDates.map((date) => {
+              const selected = date === selectedMobileDate;
+              const today = isToday(date);
+              const parsed = parseDate(date);
+              return (
+                <button
+                  key={date}
+                  type="button"
+                  onClick={() => setSelectedMobileDate(date)}
+                  className={`flex min-h-14 flex-col items-center justify-center rounded-2xl text-xs font-semibold transition-all active:scale-[.97] ${
+                    selected
+                      ? 'bg-brand-red text-white shadow-[0_7px_18px_-10px_rgba(0,122,255,.8)]'
+                      : today
+                        ? 'bg-brand-red-light text-brand-red'
+                        : 'text-ink-soft hover:bg-brand-beige-light'
+                  }`}
+                >
+                  <span>{MOBILE_WEEKDAY_LABELS[parsed.getDay()]}</span>
+                  <span className="mt-0.5 text-[11px] tabular-nums">{parsed.getDate()}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        <section
+          className="overflow-hidden rounded-[24px] bg-white/92 p-4 shadow-premium ring-1 ring-black/[0.035]"
+          onTouchStart={(event) => {
+            const touch = event.touches[0];
+            mobileSwipeStartRef.current = { x: touch.clientX, y: touch.clientY };
+          }}
+          onTouchEnd={(event) => {
+            const start = mobileSwipeStartRef.current;
+            const touch = event.changedTouches[0];
+            mobileSwipeStartRef.current = undefined;
+            if (!start) return;
+            const deltaX = touch.clientX - start.x;
+            const deltaY = touch.clientY - start.y;
+            if (Math.abs(deltaX) < 50 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
+            moveMobileDay(deltaX < 0 ? 1 : -1);
+          }}
+        >
+          <div className="mb-3 flex items-center justify-between px-1">
+            <button type="button" onClick={() => moveMobileDay(-1)} className="px-2 py-1 text-lg text-ink-soft" aria-label="이전 날짜">
+              ←
+            </button>
+            <h3 className="text-base font-bold text-ink">
+              {selectedMobileDate.replaceAll('-', '.')} ({getWeekdayLabel(selectedMobileDate)})
             </h3>
-            <div>
-              {weekDates.map((date, index) => {
-                const parsed = parseDate(date);
-                const today = isToday(date);
-                return (
-                  <div
-                    key={date}
-                    className={`grid min-h-[64px] grid-cols-[64px_1fr] items-center gap-3 rounded-2xl px-2 py-1 ${
-                      index > 0 ? 'border-t border-black/[0.035]' : ''
-                    } ${getDayStyle(date)}`}
-                  >
-                    <div className="text-center">
-                      <p className={`text-[9px] font-bold tracking-[.1em] ${today ? 'text-brand-red' : 'text-ink-faint'}`}>
-                        {WEEKDAY_LABELS[parsed.getDay()]}
-                      </p>
-                      <p className={`text-base font-bold tabular-nums ${today ? 'text-brand-red' : 'text-ink'}`}>
-                        {parsed.getDate()}
-                      </p>
-                    </div>
-                    <div data-schedule-date={date} data-schedule-employee={employee.id}>
-                      <ScheduleCell {...cellProps(employee, date)} />
-                    </div>
-                  </div>
-                );
-              })}
+            <button type="button" onClick={() => moveMobileDay(1)} className="px-2 py-1 text-lg text-ink-soft" aria-label="다음 날짜">
+              →
+            </button>
+          </div>
+
+          <div className="divide-y divide-black/[0.045]">
+            {employees.map((employee) => (
+              <div key={employee.id} className="grid min-h-[64px] grid-cols-[minmax(100px,1fr)_minmax(130px,1.35fr)] items-center gap-3 py-2">
+                <div className={`flex min-w-0 items-center gap-2.5 px-1 text-[16px] font-bold ${employee.id === currentEmployeeId ? 'text-brand-red' : 'text-ink'}`}>
+                  <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${getEmployeeAccent(employee.name).dot}`} />
+                  <span className="truncate">{employee.name}</span>
+                </div>
+                <div data-schedule-date={selectedMobileDate} data-schedule-employee={employee.id}>
+                  <ScheduleCell {...cellProps(employee, selectedMobileDate)} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {selectedMobileCoverage && (
+          <section className="rounded-[22px] bg-white/92 p-4 shadow-premium ring-1 ring-black/[0.035]">
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div>
+                <p className="text-[10px] font-medium text-ink-faint">총 인원</p>
+                <p className="mt-1 text-sm font-bold text-ink">{selectedMobileCoverage.total}/{selectedMobileCoverage.requiredTotal}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-medium text-ink-faint">17시 인원</p>
+                <p className="mt-1 text-sm font-bold text-ink">{selectedMobileCoverage.byFive}/4</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-medium text-ink-faint">상태</p>
+                <p className={`mt-1 text-[11px] font-bold ${selectedMobileCoverage.isNormal ? 'text-status-working' : 'text-status-rejected'}`}>
+                  {selectedMobileCoverage.isNormal ? '✅ 정상' : `❌ ${selectedMobileCoverage.reason}`}
+                </p>
+              </div>
             </div>
           </section>
-        ))}
+        )}
       </div>
-
-      <section className="md:hidden overflow-hidden rounded-[24px] bg-white/92 p-4 shadow-premium ring-1 ring-black/[0.035]">
-        <h3 className="mb-3 px-1 text-sm font-bold text-ink">주간 운영 체크</h3>
-        <div className="overflow-x-auto scrollbar-thin">
-          <table className="w-full min-w-[620px] text-center">
-            <thead>
-              <tr>
-                <th className="w-28 px-2 py-2 text-left text-[11px] text-ink-faint">항목</th>
-                {coverage.map((item) => (
-                  <th key={item.date} className="px-2 py-2 text-xs font-bold text-ink">
-                    {WEEKDAY_LABELS[parseDate(item.date).getDay()]}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              <tr className="bg-[#F8F9FA]">
-                <th className="px-2 py-2.5 text-left text-xs font-semibold text-ink-soft">총 인원</th>
-                {coverage.map((item) => <td key={item.date} className="text-xs font-bold">{item.total}/{item.requiredTotal}</td>)}
-              </tr>
-              <tr>
-                <th className="px-2 py-2.5 text-left text-xs font-semibold text-ink-soft">17시 인원</th>
-                {coverage.map((item) => <td key={item.date} className="text-xs font-bold">{item.byFive}/4</td>)}
-              </tr>
-              <tr className="bg-[#F8F9FA]">
-                <th className="px-2 py-2.5 text-left text-xs font-semibold text-ink-soft">상태</th>
-                {coverage.map((item) => (
-                  <td key={item.date} className={`px-1 text-[10px] font-bold ${item.isNormal ? 'text-status-working' : 'text-status-rejected'}`}>
-                    {item.isNormal ? '✅ 정상' : `❌ ${item.reason}`}
-                  </td>
-                ))}
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
     </>
   );
 }
