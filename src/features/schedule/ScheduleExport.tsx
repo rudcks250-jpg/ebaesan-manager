@@ -43,8 +43,27 @@ export const ScheduleExport = forwardRef<HTMLDivElement, {
             </div>
             <div style={{ fontSize: 27, fontWeight: 800, letterSpacing: '-0.035em' }}>이배산 숯불구이 근무표</div>
           </div>
-          <div style={{ borderRadius: 14, background: '#F2F2F7', padding: '9px 16px', fontSize: 17, fontWeight: 700, color: '#6E6E73' }}>
-            {rangeLabel}
+          <div style={{ width: 286, height: 44, borderRadius: 14, background: '#F2F2F7' }}>
+            <svg
+              width="286"
+              height="44"
+              viewBox="0 0 286 44"
+              aria-label={rangeLabel}
+            >
+              <text
+                x="143"
+                y="22"
+                fill="#6E6E73"
+                fontFamily="Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
+                fontSize="17"
+                fontWeight="700"
+                letterSpacing="0.25"
+                textAnchor="middle"
+                dominantBaseline="central"
+              >
+                {rangeLabel}
+              </text>
+            </svg>
           </div>
         </header>
 
@@ -107,7 +126,27 @@ export const ScheduleExport = forwardRef<HTMLDivElement, {
                             </svg>
                           </span>
                         ) : (
-                          <span style={{ color: '#9CA3AF', fontSize: 15, fontWeight: 500 }}>휴무</span>
+                          <svg
+                            width="100%"
+                            height="38"
+                            viewBox="0 0 160 38"
+                            preserveAspectRatio="xMidYMid meet"
+                            aria-label="휴무"
+                          >
+                            <text
+                              x="80"
+                              y="19"
+                              fill="#9CA3AF"
+                              fontFamily="Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
+                              fontSize="15"
+                              fontWeight="500"
+                              letterSpacing="0"
+                              textAnchor="middle"
+                              dominantBaseline="central"
+                            >
+                              휴무
+                            </text>
+                          </svg>
                         )}
                       </td>
                     );
