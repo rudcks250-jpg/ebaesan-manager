@@ -38,23 +38,11 @@ export const noticeRepository = {
   },
 
   async migrateLocal(createdBy: string): Promise<number> {
-    const local = localNotices();
-    if (local.length === 0) return 0;
-    const { data: existing, error: readError } = await supabase
-      .from('notices')
-      .select('title,content,created_at');
-    if (readError) return 0;
-    const signatures = new Set((existing ?? []).map((row) => `${row.title}\n${row.content}\n${row.created_at}`));
-    const missing = local.filter((notice) => !signatures.has(`${notice.title}\n${notice.content}\n${notice.createdAt}`));
-    if (missing.length === 0) return 0;
-    const { error } = await supabase.from('notices').insert(missing.map((notice) => ({
-      title: notice.title,
-      content: notice.content,
-      created_by: createdBy,
-      created_at: notice.createdAt,
-    })));
-    if (error) return 0;
-    return missing.length;
+    void createdBy;
+    // 공지사항은 Supabase가 유일한 저장소입니다. 과거 로컬 공지가 삭제 후
+    // 다시 업로드되지 않도록 기존 브라우저 데이터도 제거합니다.
+    storage.remove(STORAGE_KEYS.notices);
+    return 0;
   },
 
   seedIfEmpty(seed: Notice[]): void {
