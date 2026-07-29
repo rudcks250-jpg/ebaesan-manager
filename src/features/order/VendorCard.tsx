@@ -1,5 +1,15 @@
 import { useState } from 'react';
-import { Copy, CheckCircle2, ChevronDown, Pencil, Minus, Plus, Store } from 'lucide-react';
+import {
+  Copy,
+  CheckCircle2,
+  ChevronDown,
+  Pencil,
+  Minus,
+  Plus,
+  Store,
+  MessageCircle,
+  Smartphone,
+} from 'lucide-react';
 import { Card } from '@/components/common/Card';
 import { Modal } from '@/components/common/Modal';
 import { useToast } from '@/components/common/Toast';
@@ -81,6 +91,8 @@ const JIWOO_FOOD_STANDARDS: Readonly<Record<string, { name: string; specificatio
   '니트릴장갑 L': { name: '니트릴장갑 L', specification: '' },
 };
 
+const KAKAO_SHARE_VENDORS = new Set(['지우푸드', '비제이무역', '좋은축산유통']);
+
 function productDisplayName(vendorName: string, productName: string): string {
   const product = productDisplayParts(vendorName, productName);
   return product.specification ? `${product.name} (${product.specification})` : product.name;
@@ -109,6 +121,7 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
   const phoneDisplay = vendorService.formatPhoneDisplay(vendor.phone);
   const selectedCount = Object.values(selections).filter((s) => s.checked).length;
   const ordered = vendorService.isOrderedToday(vendor);
+  const usesKakaoShare = KAKAO_SHARE_VENDORS.has(vendor.name.trim());
 
   const toggleCheck = (itemId: string) => {
     setSelections((prev) => ({ ...prev, [itemId]: { ...prev[itemId], checked: !prev[itemId].checked } }));
@@ -122,8 +135,8 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
     showToast('기본 발주 품목을 불러왔습니다.');
   };
 
-  const handleCopy = async () => {
-    const message =
+  const getOrderMessage = (): string => {
+    return (
       directOrderMessage ??
       (vendor.type === 'quantity'
         ? vendor.name === '지우푸드'
@@ -134,20 +147,68 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
               return lines.length > 0 ? `안녕하세요.\n${lines.join('\n')}\n부탁드립니다.\n감사합니다.` : '';
             })()
           : vendorService.buildQuantityMessage(vendor, selections)
-        : vendorService.buildFixedMessage(vendor));
+        : vendorService.buildFixedMessage(vendor))
+    );
+  };
 
+  const requireOrderMessage = (): string | null => {
+    const message = getOrderMessage();
     if (!directOrderMessage && vendor.type === 'quantity' && !message) {
       showToast('체크된 품목이 없습니다.');
-      return;
+      return null;
     }
+    return message;
+  };
 
+  const copyOrderMessage = async (message: string): Promise<boolean> => {
     const ok = await copyText(message);
     if (ok) {
-      showToast('문자 내용이 복사되었습니다.');
+      showToast('발주 내용이 복사되었습니다.');
     } else {
       showToast('복사에 실패했어요. 아래 내용을 직접 복사해주세요.');
       setFallbackMessage(message);
     }
+    return ok;
+  };
+
+  const handleCopy = async () => {
+    const message = requireOrderMessage();
+    if (!message) return;
+    await copyOrderMessage(message);
+  };
+
+  const handleKakaoShare = async () => {
+    const message = requireOrderMessage();
+    if (!message) return;
+
+    if (typeof navigator.share === 'function') {
+      try {
+        await navigator.share({
+          title: `${vendor.name} 발주`,
+          text: message,
+        });
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+      }
+    }
+
+    const copied = await copyOrderMessage(message);
+    if (copied) {
+      showToast('발주 내용을 복사했습니다. 카카오톡 채팅방에 붙여넣어주세요.');
+      window.location.href = 'kakaotalk://';
+    }
+  };
+
+  const handleSms = () => {
+    const message = requireOrderMessage();
+    if (!message) return;
+    const phone = vendor.phone.replace(/\D/g, '');
+    if (!phone) {
+      showToast('업체 전화번호가 등록되어 있지 않습니다.', 'error');
+      return;
+    }
+    window.location.href = `sms:${phone}?body=${encodeURIComponent(message)}`;
   };
 
   const handleMarkOrdered = () => {
@@ -280,31 +341,41 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
         </div>
       ))}
 
-      {directOrderMessage ? (
+      <div className="grid grid-cols-2 gap-2 pt-1">
+        {usesKakaoShare ? (
+          <button
+            onClick={handleKakaoShare}
+            className="flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-[#FEE500] px-3 py-3.5 text-sm font-bold text-[#191919] press-scale"
+          >
+            <MessageCircle size={19} />
+            <span>카카오톡 공유</span>
+          </button>
+        ) : (
+          <button
+            onClick={handleSms}
+            className="flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-brand-red px-3 py-3.5 text-sm font-bold text-white press-scale"
+          >
+            <Smartphone size={19} />
+            <span>문자 보내기</span>
+          </button>
+        )}
         <button
           onClick={handleCopy}
-          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand-red py-3.5 text-sm font-bold text-white press-scale"
+          className="flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-brand-red-light px-3 py-3.5 text-sm font-bold text-brand-red press-scale"
         >
-          <Copy size={17} />
-          복사
+          <Copy size={19} />
+          <span>내용 복사</span>
         </button>
-      ) : (
-        <div className="grid grid-cols-2 gap-2 pt-1">
-          <button
-            onClick={handleCopy}
-            className="flex flex-col items-center justify-center gap-1 rounded-2xl bg-brand-red-light py-3 press-scale"
-          >
-            <Copy size={17} className="text-brand-red" />
-            <span className="text-[11px] font-semibold text-brand-red">문자복사</span>
-          </button>
-          <button
-            onClick={handleMarkOrdered}
-            className="flex flex-col items-center justify-center gap-1 rounded-2xl bg-brand-red py-3 press-scale"
-          >
-            <CheckCircle2 size={17} className="text-white" />
-            <span className="text-[11px] font-semibold text-white">발주완료</span>
-          </button>
-        </div>
+      </div>
+
+      {!directOrderMessage && (
+        <button
+          onClick={handleMarkOrdered}
+          className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-ink px-3 py-3 text-sm font-bold text-white press-scale"
+        >
+          <CheckCircle2 size={18} />
+          <span>발주 완료</span>
+        </button>
       )}
 
       {!directOrderMessage && (
@@ -314,7 +385,7 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
       {editOpen && <VendorEditModal vendor={vendor} onClose={() => setEditOpen(false)} onSaved={onChanged} />}
 
       {fallbackMessage && (
-        <Modal open onClose={() => setFallbackMessage(null)} title="문자 내용">
+        <Modal open onClose={() => setFallbackMessage(null)} title="발주 내용">
           <p className="text-xs text-ink-soft mb-2">자동 복사에 실패했어요. 아래 내용을 길게 눌러 직접 복사해주세요.</p>
           <textarea
             readOnly
