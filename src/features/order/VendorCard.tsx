@@ -9,6 +9,7 @@ import {
   Store,
   MessageCircle,
   Smartphone,
+  RotateCcw,
 } from 'lucide-react';
 import { Card } from '@/components/common/Card';
 import { Modal } from '@/components/common/Modal';
@@ -16,6 +17,7 @@ import { useToast } from '@/components/common/Toast';
 import { vendorService, type ItemSelectionMap } from '@/services/vendorService';
 import { copyText } from '@/utils/clipboard';
 import { VendorEditModal } from '@/features/order/VendorEditModal';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   orderHistoryRepository,
@@ -124,6 +126,7 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [completing, setCompleting] = useState(false);
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
   const [fallbackMessage, setFallbackMessage] = useState<string | null>(null);
   const [selections, setSelections] = useState<ItemSelectionMap>(() =>
     Object.fromEntries((vendor.items ?? []).map((item) => [item.id, { checked: false, qty: 1 }]))
@@ -285,6 +288,25 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
       if (isSharedCompletionVendor) setRecentOrder(saved);
     } catch {
       // DB 마이그레이션 적용 전에도 로컬 완료 상태와 즉시 갱신은 유지합니다.
+    } finally {
+      setCompleting(false);
+    }
+  };
+
+  const handleCancelOrdered = async () => {
+    if (completing || !session) return;
+    setCompleting(true);
+    try {
+      await orderHistoryRepository.deleteToday(vendor.id);
+      vendorService.cancelTodayOrder(vendor.id);
+      if (isSharedCompletionVendor) {
+        const latest = await orderHistoryRepository.findLatest(vendor.id);
+        setRecentOrder(latest);
+      }
+      showToast('오늘 발주 완료를 취소했습니다.');
+      onChanged();
+    } catch {
+      showToast('발주 완료 취소에 실패했습니다.', 'error');
     } finally {
       setCompleting(false);
     }
@@ -461,12 +483,16 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
       </div>
 
       <button
-        onClick={handleMarkOrdered}
+        onClick={ordered ? () => setCancelConfirmOpen(true) : handleMarkOrdered}
         disabled={completing}
-        className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-ink px-3 py-3 text-sm font-bold text-white press-scale disabled:opacity-50"
+        className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl px-3 py-3 text-sm font-bold text-white press-scale disabled:opacity-50 ${
+          ordered ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-brand-red hover:bg-brand-red/90'
+        }`}
       >
-        <CheckCircle2 size={18} />
-        <span>{completing ? '저장 중...' : '발주 완료'}</span>
+        {ordered ? <RotateCcw size={18} /> : <CheckCircle2 size={18} />}
+        <span>
+          {completing ? '처리 중...' : ordered ? '✔ 발주 완료 (취소)' : '발주 완료'}
+        </span>
       </button>
 
       <p className="text-[11px] text-ink-faint text-center -mt-1">
@@ -474,6 +500,16 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
       </p>
 
       {editOpen && <VendorEditModal vendor={vendor} onClose={() => setEditOpen(false)} onSaved={onChanged} />}
+
+      <ConfirmDialog
+        open={cancelConfirmOpen}
+        title="오늘 발주 완료를 취소하시겠습니까?"
+        description="오늘 완료 시간과 완료한 직원 정보가 삭제되며, 과거 발주 기록은 유지됩니다."
+        confirmLabel="확인"
+        danger
+        onConfirm={handleCancelOrdered}
+        onClose={() => setCancelConfirmOpen(false)}
+      />
 
       {fallbackMessage && (
         <Modal open onClose={() => setFallbackMessage(null)} title="발주 내용">

@@ -214,6 +214,22 @@ as $$
   );
 $$;
 
+create or replace function public.can_manage_orders()
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.employees e
+    where e.auth_user_id = auth.uid()
+      and e.status = 'active'
+      and e.role in ('admin', 'manager')
+  );
+$$;
+
 -- 비밀번호 변경을 마친 본인만 최초 로그인 플래그를 해제할 수 있습니다.
 create or replace function public.complete_first_login(p_employee_id uuid)
 returns void
@@ -300,6 +316,8 @@ grant execute on function public.is_admin() to anon, authenticated;
 grant execute on function public.current_employee_id() to anon, authenticated;
 revoke all on function public.can_manage_opening_preparations() from public, anon;
 grant execute on function public.can_manage_opening_preparations() to authenticated;
+revoke all on function public.can_manage_orders() from public, anon;
+grant execute on function public.can_manage_orders() to authenticated;
 revoke all on function public.complete_first_login(uuid) from public, anon;
 grant execute on function public.complete_first_login(uuid) to authenticated;
 revoke all on function public.list_schedule_employees() from public, anon;
@@ -399,6 +417,15 @@ create policy order_completions_authenticated_select on public.order_completions
 drop policy if exists order_completions_self_insert on public.order_completions;
 create policy order_completions_self_insert on public.order_completions
   for insert with check (completed_by = public.current_employee_id());
+
+drop policy if exists order_completions_today_delete on public.order_completions;
+create policy order_completions_today_delete on public.order_completions
+  for delete
+  using (
+    public.can_manage_orders()
+    and (completed_at at time zone 'Asia/Seoul')::date =
+      (now() at time zone 'Asia/Seoul')::date
+  );
 
 drop policy if exists opening_preparations_allowed_all on public.opening_preparations;
 create policy opening_preparations_allowed_all on public.opening_preparations

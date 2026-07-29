@@ -40,6 +40,13 @@ export const vendorService = {
     });
   },
 
+  cancelTodayOrder(id: string): Vendor | undefined {
+    return vendorRepository.update(id, {
+      lastOrderAt: undefined,
+      lastOrderedByName: undefined,
+    });
+  },
+
   // 오늘 발주를 완료했는지 여부 (자정이 지나면 자동으로 false로 초기화됨)
   isOrderedToday(vendor: Vendor): boolean {
     if (!vendor.lastOrderAt) return false;

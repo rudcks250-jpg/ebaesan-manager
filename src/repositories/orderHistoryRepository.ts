@@ -52,4 +52,18 @@ export const orderHistoryRepository = {
     if (error) throw error;
     return mapCompletion(data);
   },
+
+  async deleteToday(vendorId: string): Promise<void> {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    const { error } = await supabase
+      .from('order_completions')
+      .delete()
+      .eq('vendor_id', vendorId)
+      .gte('completed_at', start.toISOString())
+      .lt('completed_at', end.toISOString());
+    if (error) throw error;
+  },
 };
