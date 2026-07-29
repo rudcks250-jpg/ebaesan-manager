@@ -92,6 +92,12 @@ const JIWOO_FOOD_STANDARDS: Readonly<Record<string, { name: string; specificatio
 };
 
 const KAKAO_SHARE_VENDORS = new Set(['지우푸드', '비제이무역', '좋은축산유통']);
+const KAKAO_SHARE_VENDOR_IDS = new Set([
+  'vendor_grocery',
+  'vendor_fixed_charcoal',
+  'vendor_meat',
+]);
+const SMS_ONLY_VENDOR_IDS = new Set(['vendor_fixed_kimchi']);
 
 function productDisplayName(vendorName: string, productName: string): string {
   const product = productDisplayParts(vendorName, productName);
@@ -121,7 +127,10 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
   const phoneDisplay = vendorService.formatPhoneDisplay(vendor.phone);
   const selectedCount = Object.values(selections).filter((s) => s.checked).length;
   const ordered = vendorService.isOrderedToday(vendor);
-  const usesKakaoShare = KAKAO_SHARE_VENDORS.has(vendor.name.trim());
+  const normalizedVendorName = vendor.name.replace(/\s/g, '');
+  const usesKakaoShare =
+    !SMS_ONLY_VENDOR_IDS.has(vendor.id) &&
+    (KAKAO_SHARE_VENDOR_IDS.has(vendor.id) || KAKAO_SHARE_VENDORS.has(normalizedVendorName));
 
   const toggleCheck = (itemId: string) => {
     setSelections((prev) => ({ ...prev, [itemId]: { ...prev[itemId], checked: !prev[itemId].checked } }));
@@ -239,15 +248,13 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
             )}
           </div>
         </div>
-        {!directOrderMessage && (
-          <button
-            onClick={() => setEditOpen(true)}
-            aria-label="거래처 정보 수정"
-            className="shrink-0 w-9 h-9 flex items-center justify-center rounded-full text-ink-faint hover:bg-brand-beige-light press-scale"
-          >
-            <Pencil size={15} />
-          </button>
-        )}
+        <button
+          onClick={() => setEditOpen(true)}
+          aria-label={`${vendor.name} 담당자 및 전화번호 수정`}
+          className="shrink-0 w-10 h-10 flex items-center justify-center rounded-full text-ink-faint hover:bg-brand-beige-light press-scale"
+        >
+          <Pencil size={16} />
+        </button>
       </div>
 
       {!directOrderMessage && (
@@ -378,9 +385,9 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
         </button>
       )}
 
-      {!directOrderMessage && (
-        <p className="text-[11px] text-ink-faint text-center -mt-1">{phoneDisplay}</p>
-      )}
+      <p className="text-[11px] text-ink-faint text-center -mt-1">
+        {vendor.contactName} · {phoneDisplay}
+      </p>
 
       {editOpen && <VendorEditModal vendor={vendor} onClose={() => setEditOpen(false)} onSaved={onChanged} />}
 
