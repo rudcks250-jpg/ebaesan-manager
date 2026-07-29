@@ -1,7 +1,7 @@
 import type { ShiftEntry } from '@/data/types';
 import { parseDate } from '@/utils/date';
+import { calculateFivePmWorkingCount } from '@/features/schedule/fivePmCoverage';
 
-const FIVE_PM = '17:00';
 export const MINIMUM_FIVE_PM_STAFF = 4;
 
 const REQUIRED_TOTAL_BY_WEEKDAY: Record<number, number> = {
@@ -24,16 +24,6 @@ export interface ScheduleCoverage {
   reason: string;
 }
 
-export function isWorkingAtFive(shift: ShiftEntry): boolean {
-  return (
-    shift.status === 'working' &&
-    !!shift.startTime &&
-    !!shift.endTime &&
-    shift.startTime <= FIVE_PM &&
-    shift.endTime > FIVE_PM
-  );
-}
-
 export function calculateScheduleCoverage(
   weekDates: string[],
   shifts: ShiftEntry[]
@@ -47,7 +37,7 @@ export function calculateScheduleCoverage(
         !!shift.endTime
     );
     const total = workingShifts.length;
-    const atFive = workingShifts.filter(isWorkingAtFive).length;
+    const atFive = calculateFivePmWorkingCount(date, shifts);
     const requiredTotal = REQUIRED_TOTAL_BY_WEEKDAY[parseDate(date).getDay()];
     const totalShort = total < requiredTotal;
     const fiveShort = atFive < MINIMUM_FIVE_PM_STAFF;
