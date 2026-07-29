@@ -187,3 +187,26 @@ export interface AuthSession {
   name: string;
   role: UserRole;
 }
+
+// ---------------------------------------------------------
+// 오픈 준비 체크리스트
+// ---------------------------------------------------------
+export interface OpeningPreparationItem {
+  key: string;
+  label: string;
+  completed: boolean;
+  completedAt?: string;
+  completedBy?: string;
+  completedByName?: string;
+}
+
+export interface OpeningPreparation {
+  id: string;
+  targetDate: string; // 실제 사용하는 날짜
+  items: OpeningPreparationItem[];
+  confirmedAt?: string;
+  confirmedBy?: string;
+  confirmedByName?: string;
+  updatedAt: string;
+  updatedBy?: string;
+}

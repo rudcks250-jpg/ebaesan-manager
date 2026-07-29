@@ -131,6 +131,22 @@ create table if not exists public.order_completions (
 create index if not exists idx_order_completions_vendor_latest
   on public.order_completions(vendor_id, completed_at desc);
 
+-- 다음날 오픈 준비 체크리스트
+create table if not exists public.opening_preparations (
+  id uuid primary key default gen_random_uuid(),
+  target_date date not null unique,
+  items jsonb not null default '[]'::jsonb,
+  confirmed_at timestamptz,
+  confirmed_by uuid references public.employees(id) on delete set null,
+  confirmed_by_name text,
+  updated_by uuid references public.employees(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_opening_preparations_target_date
+  on public.opening_preparations(target_date desc);
+
 -- ---------------------------------------------------------
 -- updated_at 자동 갱신 트리거
 -- ---------------------------------------------------------
@@ -152,6 +168,10 @@ create trigger trg_schedules_updated_at before update on public.schedules
 
 drop trigger if exists trg_attendance_updated_at on public.attendance;
 create trigger trg_attendance_updated_at before update on public.attendance
+  for each row execute function public.set_updated_at();
+
+drop trigger if exists trg_opening_preparations_updated_at on public.opening_preparations;
+create trigger trg_opening_preparations_updated_at before update on public.opening_preparations
   for each row execute function public.set_updated_at();
 
 -- ---------------------------------------------------------
@@ -176,6 +196,22 @@ security definer
 stable
 as $$
   select e.id from public.employees e where e.auth_user_id = auth.uid();
+$$;
+
+create or replace function public.can_manage_opening_preparations()
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.employees e
+    where e.auth_user_id = auth.uid()
+      and e.status = 'active'
+      and e.name in ('박경찬', '김경재', '김하은')
+  );
 $$;
 
 -- 비밀번호 변경을 마친 본인만 최초 로그인 플래그를 해제할 수 있습니다.
@@ -262,6 +298,8 @@ $$;
 grant execute on function public.lookup_login_email(text) to anon, authenticated;
 grant execute on function public.is_admin() to anon, authenticated;
 grant execute on function public.current_employee_id() to anon, authenticated;
+revoke all on function public.can_manage_opening_preparations() from public, anon;
+grant execute on function public.can_manage_opening_preparations() to authenticated;
 revoke all on function public.complete_first_login(uuid) from public, anon;
 grant execute on function public.complete_first_login(uuid) to authenticated;
 revoke all on function public.list_schedule_employees() from public, anon;
@@ -278,6 +316,7 @@ alter table public.attendance enable row level security;
 alter table public.leave_requests enable row level security;
 alter table public.payrolls enable row level security;
 alter table public.order_completions enable row level security;
+alter table public.opening_preparations enable row level security;
 
 -- ---------------------------------------------------------
 -- employees 정책: 관리자는 전체, 직원은 본인 행만 조회 가능
@@ -360,6 +399,15 @@ create policy order_completions_authenticated_select on public.order_completions
 drop policy if exists order_completions_self_insert on public.order_completions;
 create policy order_completions_self_insert on public.order_completions
   for insert with check (completed_by = public.current_employee_id());
+
+drop policy if exists opening_preparations_allowed_all on public.opening_preparations;
+create policy opening_preparations_allowed_all on public.opening_preparations
+  for all
+  using (public.can_manage_opening_preparations())
+  with check (
+    public.can_manage_opening_preparations()
+    and updated_by = public.current_employee_id()
+  );
 
 -- =========================================================
 -- 초기 관리자 계정 생성 안내 (SQL만으로는 auth.users를 만들 수 없습니다)

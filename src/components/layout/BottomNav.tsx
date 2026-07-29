@@ -11,9 +11,10 @@ import {
   LogOut,
   UserCircle2,
   MoreHorizontal,
+  ClipboardList,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { canAccess, type FeatureKey } from '@/utils/permission';
+import { canAccess, canAccessTomorrowPrep, type FeatureKey } from '@/utils/permission';
 
 interface NavItem {
   to: string;
@@ -40,6 +41,13 @@ const EMPLOYEE_TABS: NavItem[] = [
   { to: '/worktime', label: '근로시간', icon: Clock, feature: 'worktime' },
 ];
 
+const TOMORROW_PREP_TAB: NavItem = {
+  to: '/tomorrow-prep',
+  label: '내일 준비',
+  icon: ClipboardList,
+  feature: 'tomorrowPrep',
+};
+
 const GRID_COLS: Record<number, string> = {
   2: 'grid-cols-2',
   3: 'grid-cols-3',
@@ -55,13 +63,17 @@ export function BottomNav() {
   const [moreOpen, setMoreOpen] = useState(false);
 
   const isRealAdmin = session?.role === 'admin';
+  const hasTomorrowPrepAccess = canAccessTomorrowPrep(session?.name);
 
   // 직원 계열 화면: 매니저에게만 발주관리 탭을 추가합니다.
   if (effectiveRole === 'employee' || effectiveRole === 'manager') {
-    const workerTabs =
+    const roleTabs =
       effectiveRole === 'manager'
         ? [...EMPLOYEE_TABS.slice(0, 3), ADMIN_PRIMARY[3], ...EMPLOYEE_TABS.slice(3)]
         : EMPLOYEE_TABS;
+    const workerTabs = hasTomorrowPrepAccess
+      ? [...roleTabs.slice(0, -1), TOMORROW_PREP_TAB, roleTabs.at(-1)!]
+      : roleTabs;
     const totalWorkerCols = workerTabs.length + 1;
     return (
       <nav className="sm:hidden fixed bottom-3 left-3 right-3 z-40 bg-surface/88 backdrop-blur-2xl border border-white/80 rounded-[22px] shadow-premium-lg pb-[env(safe-area-inset-bottom)] overflow-hidden">
@@ -128,6 +140,19 @@ export function BottomNav() {
                 >
                   <UserCircle2 size={21} className="text-ink" strokeWidth={2} />
                   <span className="text-xs font-semibold text-ink">직원 모드</span>
+                </button>
+              )}
+
+              {hasTomorrowPrepAccess && (
+                <button
+                  onClick={() => {
+                    setMoreOpen(false);
+                    navigate('/tomorrow-prep');
+                  }}
+                  className="flex flex-col items-center gap-1.5 py-4 rounded-2xl hover:bg-brand-beige-light press-scale"
+                >
+                  <ClipboardList size={21} className="text-ink" strokeWidth={2} />
+                  <span className="text-xs font-semibold text-ink">내일 준비</span>
                 </button>
               )}
 
