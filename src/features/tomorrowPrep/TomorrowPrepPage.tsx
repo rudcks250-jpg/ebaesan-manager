@@ -1,20 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, CheckCircle2, ClipboardList, Clock3, UserRound } from 'lucide-react';
+import { Check, CheckCircle2, ClipboardList } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { Card } from '@/components/common/Card';
 import { Spinner } from '@/components/common/Spinner';
 import { useToast } from '@/components/common/Toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { openingPreparationRepository } from '@/repositories/openingPreparationRepository';
-import { scheduleService } from '@/services/scheduleService';
 import type { OpeningPreparation, OpeningPreparationItem } from '@/data/types';
 import {
   addDays,
   formatDate,
   formatDateTimeKo,
-  formatMonthDay,
-  getMondayOfWeekStr,
-  getWeekdayLabel,
   parseDate,
   todayStr,
 } from '@/utils/date';
@@ -71,7 +67,6 @@ export function TomorrowPrepPage() {
   const [preparation, setPreparation] = useState<OpeningPreparation>();
   const [items, setItems] = useState<OpeningPreparationItem[]>(emptyItems);
   const [targetDate, setTargetDate] = useState('');
-  const [openingStaff, setOpeningStaff] = useState<{ names: string; time: string }>();
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string>();
   const [confirming, setConfirming] = useState(false);
@@ -93,28 +88,10 @@ export function TomorrowPrepPage() {
             ? todayRecord
             : tomorrowRecord;
         const selectedDate = selected?.targetDate ?? tomorrow;
-        const board = await scheduleService.getWeekBoard(getMondayOfWeekStr(selectedDate));
-        const shifts = board.week.shifts
-          .filter(
-            (shift) =>
-              shift.date === selectedDate &&
-              shift.status === 'working' &&
-              shift.startTime,
-          )
-          .sort((a, b) => (a.startTime ?? '').localeCompare(b.startTime ?? ''));
-        const earliest = shifts[0]?.startTime;
-        const names = earliest
-          ? shifts
-              .filter((shift) => shift.startTime === earliest)
-              .map((shift) => board.employees.find((employee) => employee.id === shift.employeeId)?.name)
-              .filter(Boolean)
-              .join(', ')
-          : '';
         if (cancelled) return;
         setPreparation(selected);
         setItems(selected?.items?.length ? selected.items : emptyItems());
         setTargetDate(selectedDate);
-        setOpeningStaff(earliest ? { names: names || '담당자 확인 필요', time: earliest } : undefined);
       } catch {
         showToast('오픈 준비 정보를 불러오지 못했습니다.', 'error');
       } finally {
@@ -127,7 +104,6 @@ export function TomorrowPrepPage() {
   }, [session, showToast]);
 
   const completedCount = items.filter((item) => item.completed).length;
-  const progress = Math.round((completedCount / items.length) * 100);
   const message = usageMessage(preparation, targetDate);
 
   const lastConfirmed = useMemo(() => {
@@ -200,8 +176,6 @@ export function TomorrowPrepPage() {
     );
   }
 
-  const today = todayStr();
-
   return (
     <Layout title="내일 해야 할 것">
       <div className="space-y-5">
@@ -224,21 +198,6 @@ export function TomorrowPrepPage() {
             >
               {confirming ? '확정 중...' : '내일 준비 확정'}
             </button>
-          </div>
-
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl bg-white/85 p-4 ring-1 ring-black/[0.04]">
-              <p className="text-xs font-semibold text-ink-faint">오늘</p>
-              <p className="mt-1 text-lg font-bold tabular-nums text-ink">
-                {formatMonthDay(today)} ({getWeekdayLabel(today)})
-              </p>
-            </div>
-            <div className="rounded-2xl bg-brand-red-light/75 p-4 ring-1 ring-brand-red/10">
-              <p className="text-xs font-semibold text-brand-red">현재 보고 있는 준비</p>
-              <p className="mt-1 text-lg font-bold tabular-nums text-ink">
-                ▶ {formatMonthDay(targetDate)} 오픈 준비
-              </p>
-            </div>
           </div>
 
           <div className={`mt-5 rounded-2xl px-4 py-3 text-sm font-bold ${
@@ -268,43 +227,6 @@ export function TomorrowPrepPage() {
             )}
           </div>
 
-          {completedCount === 0 && (
-            <p className="mt-3 text-right text-xs font-semibold text-ink-faint">
-              한 항목 이상 완료해야 확정할 수 있습니다.
-            </p>
-          )}
-
-          {completedCount === items.length && (
-            <div className="mt-5 rounded-[22px] border border-emerald-100 bg-emerald-50 p-5 text-center">
-              <p className="text-3xl" aria-hidden="true">🎉</p>
-              <p className="mt-2 text-base font-bold text-emerald-800">
-                {message.today ? '오늘' : '내일'} 오픈 준비가 모두 완료되었습니다.
-              </p>
-            </div>
-          )}
-
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl bg-white/80 p-4 ring-1 ring-black/[0.04]">
-              <p className="flex items-center gap-1.5 text-xs font-semibold text-ink-faint">
-                <UserRound size={14} /> {message.today ? '오늘 오픈' : '내일 오픈'}
-              </p>
-              <p className="mt-2 text-lg font-bold text-ink">{openingStaff?.names ?? '스케줄 없음'}</p>
-              <p className="mt-0.5 flex items-center gap-1 text-sm font-semibold text-brand-red">
-                {openingStaff && <Clock3 size={14} />} {openingStaff?.time ?? '—'}
-              </p>
-            </div>
-            <div className="rounded-2xl bg-white/80 p-4 ring-1 ring-black/[0.04]">
-              <p className="text-xs font-semibold text-ink-faint">진행률</p>
-              <p className="mt-2 text-lg font-bold text-ink">{completedCount} / {items.length} 완료</p>
-              <p className="text-sm font-semibold text-brand-red">{progress}% 완료</p>
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-brand-beige-light">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-brand-red to-[#52A8FF] transition-all duration-300"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-            </div>
-          </div>
         </Card>
 
         {CHECKLIST_CATEGORIES.map((category) => (
