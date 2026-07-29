@@ -27,6 +27,7 @@ export interface Employee {
   hireDate: string; // YYYY-MM-DD
   resignDate?: string;
   isFirstLogin: boolean; // true면 로그인 후 비밀번호 변경 강제
+  monthlyLeaveEligible?: boolean;
   lastLoginAt?: string; // 마지막 로그인 시각 (ISO)
   createdAt: string;
   updatedAt: string;
@@ -66,12 +67,14 @@ export interface ScheduleWeek {
 // 휴무 신청
 // ---------------------------------------------------------
 export type LeaveStatus = 'pending' | 'approved' | 'rejected';
+export type LeaveType = 'regular' | 'monthly';
 
 export interface LeaveRequest {
   id: string;
   employeeId: string;
   requestedDate: string; // 신청 대상 날짜 (차주 내) YYYY-MM-DD
   reason: string;
+  leaveType: LeaveType;
   status: LeaveStatus;
   rejectReason?: string;
   createdAt: string;

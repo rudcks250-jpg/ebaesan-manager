@@ -40,6 +40,7 @@ export function ScheduleCell({
   const startLabel = shift?.startTime ? formatTime(shift.startTime) : '';
   const endLabel = shift?.endTime ? formatTime(shift.endTime) : '';
   const working = status === 'working' && startLabel !== '' && endLabel !== '';
+  const monthlyLeave = status === 'leaveApproved' && shift?.memo === 'monthly';
   const accent = getEmployeeAccent(employeeName);
 
   return (
@@ -54,7 +55,9 @@ export function ScheduleCell({
       aria-label={
         working
           ? `${startLabel}부터 ${endLabel}까지 근무`
-          : '휴무'
+          : monthlyLeave
+            ? '월차'
+            : '휴무'
       }
       className={`group/cell flex min-h-11 w-full touch-pan-y select-none items-center justify-center rounded-[16px] px-1.5 transition-all duration-150 ${
         clickable ? 'cursor-pointer hover:bg-brand-red-light/45 active:scale-[.98]' : 'cursor-default'
@@ -70,6 +73,10 @@ export function ScheduleCell({
         >
           <span className={`h-2 w-2 shrink-0 rounded-full ${accent.dot}`} aria-hidden="true" />
           {shortTime(startLabel)}-{shortTime(endLabel)}
+        </span>
+      ) : monthlyLeave ? (
+        <span className="flex min-h-11 w-full items-center justify-center rounded-[14px] bg-status-working-bg px-3 py-2 text-[13px] font-semibold text-status-working">
+          월차
         </span>
       ) : (
         <span className="flex min-h-11 w-full items-center justify-center px-3 py-2 text-[13px] font-medium text-[#9CA3AF]">

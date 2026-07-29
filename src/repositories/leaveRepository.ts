@@ -32,6 +32,7 @@ export const leaveRepository = {
         employee_id: request.employeeId,
         requested_date: request.requestedDate,
         reason: request.reason,
+        leave_type: request.leaveType,
         status: request.status,
       })
       .select()

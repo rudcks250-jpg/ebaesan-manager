@@ -77,11 +77,22 @@ export const scheduleService = {
   },
 
   // 휴무신청 승인 시 자동 반영 (leaveService에서 호출)
-  async setApprovedLeave(date: string, employeeId: string, adminId: string): Promise<ShiftEntry> {
+  async setApprovedLeave(
+    date: string,
+    employeeId: string,
+    adminId: string,
+    leaveType: 'regular' | 'monthly' = 'regular'
+  ): Promise<ShiftEntry> {
     return scheduleRepository.upsertShift(
       employeeId,
       date,
-      { status: 'leaveApproved', startTime: null, endTime: null, source: 'leaveApproved' },
+      {
+        status: 'leaveApproved',
+        startTime: null,
+        endTime: null,
+        source: 'leaveApproved',
+        memo: leaveType === 'monthly' ? 'monthly' : undefined,
+      },
       adminId
     );
   },

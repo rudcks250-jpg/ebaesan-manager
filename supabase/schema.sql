@@ -27,6 +27,7 @@ create table if not exists public.employees (
   hire_date date,
   resign_date date,
   is_first_login boolean not null default true,
+  monthly_leave_eligible boolean not null default false,
   last_login_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -90,6 +91,7 @@ create table if not exists public.leave_requests (
   employee_id uuid not null references public.employees(id) on delete cascade,
   requested_date date not null,
   reason text,
+  leave_type text not null default 'regular' check (leave_type in ('regular', 'monthly')),
   status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
   reject_reason text,
   processed_at timestamptz,

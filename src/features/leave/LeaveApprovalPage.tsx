@@ -10,9 +10,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/common/Toast';
 import { leaveService } from '@/services/leaveService';
 import { employeeService } from '@/services/employeeService';
+import {
+  activeMonthlyRequest,
+  isMonthlyLeaveEligible,
+  monthsOfYear,
+} from '@/features/leave/monthlyLeave';
 import { formatMonthDay, getWeekdayLabel, formatDateTimeKo } from '@/utils/date';
 import type { LeaveRequest, LeaveStatus } from '@/data/types';
-import { CalendarCheck2, CheckCircle2, Clock3, XCircle } from 'lucide-react';
+import { CalendarCheck2, CalendarRange, CheckCircle2, Clock3, XCircle } from 'lucide-react';
 import { StatCard } from '@/components/common/StatCard';
 
 export function LeaveApprovalPage() {
@@ -33,12 +38,14 @@ export function LeaveApprovalPage() {
   }, [refreshKey]);
 
   const filtered = filter === 'all' ? requests : requests.filter((r) => r.status === filter);
+  const monthlyEmployees = employees.filter(isMonthlyLeaveEligible);
+  const monthlyHistory = useMemo(() => monthsOfYear(new Date().getFullYear()), []);
 
   const nameOf = (employeeId: string) => employees.find((e) => e.id === employeeId)?.name ?? '알수없음';
 
   const doApprove = async (request: LeaveRequest) => {
     await leaveService.approve(request.id, session!.employeeId);
-    showToast('휴무 신청을 승인했습니다.');
+    showToast(request.leaveType === 'monthly' ? '월차 신청을 승인했습니다.' : '휴무 신청을 승인했습니다.');
     setRefreshKey((k) => k + 1);
   };
 
@@ -66,6 +73,48 @@ export function LeaveApprovalPage() {
         <StatCard icon={CheckCircle2} label="승인 완료" value={`${requests.filter((r) => r.status === 'approved').length}건`} tone="green" />
         <StatCard icon={XCircle} label="반려" value={`${requests.filter((r) => r.status === 'rejected').length}건`} tone="red" />
       </div>
+      <Card className="mb-5">
+        <div className="mb-4 flex items-center gap-2">
+          <CalendarRange size={19} className="text-status-working" />
+          <div>
+            <p className="font-bold text-ink">월차 관리</p>
+            <p className="text-xs text-ink-soft">{new Date().getFullYear()}년 직원별 사용 현황</p>
+          </div>
+        </div>
+        <div className="space-y-4">
+          {monthlyEmployees.map((employee) => (
+            <div key={employee.id} className="rounded-2xl border border-black/[0.05] p-3">
+              <p className="mb-2 text-sm font-bold text-ink">{employee.name}</p>
+              <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-6">
+                {monthlyHistory.map((yearMonth) => {
+                  const request = activeMonthlyRequest(
+                    requests.filter((item) => item.employeeId === employee.id),
+                    yearMonth
+                  );
+                  return (
+                    <div key={yearMonth} className="rounded-xl bg-brand-beige-light px-1.5 py-2 text-center">
+                      <p className="text-[10px] font-semibold text-ink-soft">{yearMonth}</p>
+                      <p className={`mt-0.5 text-[10px] font-bold ${
+                        request?.status === 'approved'
+                          ? 'text-status-working'
+                          : request?.status === 'pending'
+                            ? 'text-status-pending'
+                            : 'text-ink-faint'
+                      }`}>
+                        {request?.status === 'approved'
+                          ? '✅ 사용'
+                          : request?.status === 'pending'
+                            ? '⏳ 대기'
+                            : '❌ 미사용'}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
       <div className="glass-surface rounded-2xl p-2 flex gap-2 mb-5 overflow-x-auto scrollbar-thin">
         {(['pending', 'approved', 'rejected', 'all'] as const).map((f) => (
           <button
@@ -90,6 +139,13 @@ export function LeaveApprovalPage() {
                 <div className="flex items-center gap-3"><div className="icon-well bg-brand-red-light text-brand-red"><CalendarCheck2 size={18} /></div><p className="font-bold text-ink">{nameOf(r.employeeId)}</p></div>
                 <LeaveStatusBadge status={r.status} />
               </div>
+              <span className={`mb-2 inline-flex rounded-full px-2 py-1 text-[11px] font-bold ${
+                r.leaveType === 'monthly'
+                  ? 'bg-status-working-bg text-status-working'
+                  : 'bg-brand-beige-light text-ink-soft'
+              }`}>
+                {r.leaveType === 'monthly' ? '월차' : '휴무'}
+              </span>
               <p className="text-sm text-ink-soft mb-1">
                 {formatMonthDay(r.requestedDate)} ({getWeekdayLabel(r.requestedDate)}) 신청
               </p>
