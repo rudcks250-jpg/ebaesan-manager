@@ -33,8 +33,11 @@ export const vendorService = {
     });
   },
 
-  markOrdered(id: string): Vendor | undefined {
-    return vendorRepository.update(id, { lastOrderAt: new Date().toISOString() });
+  markOrdered(id: string, orderedByName?: string): Vendor | undefined {
+    return vendorRepository.update(id, {
+      lastOrderAt: new Date().toISOString(),
+      lastOrderedByName: orderedByName,
+    });
   },
 
   // 오늘 발주를 완료했는지 여부 (자정이 지나면 자동으로 false로 초기화됨)

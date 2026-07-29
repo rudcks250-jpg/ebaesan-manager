@@ -118,6 +118,19 @@ create table if not exists public.payrolls (
 
 create index if not exists idx_payrolls_employee on public.payrolls(employee_id);
 
+-- 발주 완료 이력 (대표/매니저 공용)
+create table if not exists public.order_completions (
+  id uuid primary key default gen_random_uuid(),
+  vendor_id text not null,
+  vendor_name text not null,
+  completed_by uuid not null references public.employees(id) on delete restrict,
+  completed_by_name text not null,
+  completed_at timestamptz not null default now()
+);
+
+create index if not exists idx_order_completions_vendor_latest
+  on public.order_completions(vendor_id, completed_at desc);
+
 -- ---------------------------------------------------------
 -- updated_at 자동 갱신 트리거
 -- ---------------------------------------------------------
@@ -264,6 +277,7 @@ alter table public.schedules enable row level security;
 alter table public.attendance enable row level security;
 alter table public.leave_requests enable row level security;
 alter table public.payrolls enable row level security;
+alter table public.order_completions enable row level security;
 
 -- ---------------------------------------------------------
 -- employees 정책: 관리자는 전체, 직원은 본인 행만 조회 가능
@@ -338,6 +352,14 @@ create policy payrolls_admin_all on public.payrolls
 drop policy if exists payrolls_self_select on public.payrolls;
 create policy payrolls_self_select on public.payrolls
   for select using (employee_id = public.current_employee_id());
+
+drop policy if exists order_completions_authenticated_select on public.order_completions;
+create policy order_completions_authenticated_select on public.order_completions
+  for select using (public.current_employee_id() is not null);
+
+drop policy if exists order_completions_self_insert on public.order_completions;
+create policy order_completions_self_insert on public.order_completions
+  for insert with check (completed_by = public.current_employee_id());
 
 -- =========================================================
 -- 초기 관리자 계정 생성 안내 (SQL만으로는 auth.users를 만들 수 없습니다)

@@ -163,6 +163,7 @@ export interface Vendor {
   items?: VendorItem[]; // type === 'quantity'인 경우 사용
   fixedOrder?: FixedOrderSpec; // type === 'fixed'인 경우 사용
   lastOrderAt?: string; // 마지막 발주 완료 시각 (ISO)
+  lastOrderedByName?: string; // 로컬 즉시 표시용 마지막 발주자
   createdAt: string;
   updatedAt: string;
 }

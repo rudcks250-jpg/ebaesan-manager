@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Copy,
   CheckCircle2,
@@ -16,6 +16,11 @@ import { useToast } from '@/components/common/Toast';
 import { vendorService, type ItemSelectionMap } from '@/services/vendorService';
 import { copyText } from '@/utils/clipboard';
 import { VendorEditModal } from '@/features/order/VendorEditModal';
+import { useAuth } from '@/contexts/AuthContext';
+import {
+  orderHistoryRepository,
+  type OrderCompletion,
+} from '@/repositories/orderHistoryRepository';
 import type { Vendor } from '@/data/types';
 
 interface VendorCardProps {
@@ -115,8 +120,10 @@ function productDisplayParts(
 
 export function VendorCard({ vendor, onChanged }: VendorCardProps) {
   const { showToast } = useToast();
+  const { session } = useAuth();
   const [expanded, setExpanded] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [completing, setCompleting] = useState(false);
   const [fallbackMessage, setFallbackMessage] = useState<string | null>(null);
   const [selections, setSelections] = useState<ItemSelectionMap>(() =>
     Object.fromEntries((vendor.items ?? []).map((item) => [item.id, { checked: false, qty: 1 }]))
@@ -126,11 +133,43 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
   const directOrderMessage = vendorService.getDirectOrderMessage(vendor);
   const phoneDisplay = vendorService.formatPhoneDisplay(vendor.phone);
   const selectedCount = Object.values(selections).filter((s) => s.checked).length;
-  const ordered = vendorService.isOrderedToday(vendor);
+  const isKimchiVendor = vendor.id === 'vendor_fixed_kimchi';
+  const isSharedCompletionVendor =
+    isKimchiVendor || vendor.id === 'vendor_fixed_charcoal';
+  const [recentOrder, setRecentOrder] = useState<OrderCompletion | undefined>(() =>
+    vendor.lastOrderAt
+      ? {
+          id: 'local',
+          vendorId: vendor.id,
+          vendorName: vendor.name,
+          completedBy: '',
+          completedByName: vendor.lastOrderedByName ?? '확인 불가',
+          completedAt: vendor.lastOrderAt,
+        }
+      : undefined
+  );
+  const ordered =
+    vendorService.isOrderedToday(vendor) ||
+    (recentOrder
+      ? vendorService.isOrderedToday({ ...vendor, lastOrderAt: recentOrder.completedAt })
+      : false);
   const normalizedVendorName = vendor.name.replace(/\s/g, '');
   const usesKakaoShare =
     !SMS_ONLY_VENDOR_IDS.has(vendor.id) &&
     (KAKAO_SHARE_VENDOR_IDS.has(vendor.id) || KAKAO_SHARE_VENDORS.has(normalizedVendorName));
+
+  useEffect(() => {
+    if (!isSharedCompletionVendor) return;
+    let cancelled = false;
+    orderHistoryRepository.findLatest(vendor.id)
+      .then((latest) => {
+        if (!cancelled && latest) setRecentOrder(latest);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [isSharedCompletionVendor, vendor.id]);
 
   const toggleCheck = (itemId: string) => {
     setSelections((prev) => ({ ...prev, [itemId]: { ...prev[itemId], checked: !prev[itemId].checked } }));
@@ -220,10 +259,35 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
     window.location.href = `sms:${phone}?body=${encodeURIComponent(message)}`;
   };
 
-  const handleMarkOrdered = () => {
-    vendorService.markOrdered(vendor.id);
+  const handleMarkOrdered = async () => {
+    if (completing || !session) return;
+    setCompleting(true);
+    const completedAt = new Date().toISOString();
+    vendorService.markOrdered(vendor.id, session.name);
+    const localCompletion: OrderCompletion = {
+      id: 'local',
+      vendorId: vendor.id,
+      vendorName: vendor.name,
+      completedBy: session.employeeId,
+      completedByName: session.name,
+      completedAt,
+    };
+    if (isSharedCompletionVendor) setRecentOrder(localCompletion);
     showToast('발주 완료로 표시했습니다.');
     onChanged();
+    try {
+      const saved = await orderHistoryRepository.record({
+        vendorId: vendor.id,
+        vendorName: vendor.name,
+        completedBy: session.employeeId,
+        completedByName: session.name,
+      });
+      if (isSharedCompletionVendor) setRecentOrder(saved);
+    } catch {
+      // DB 마이그레이션 적용 전에도 로컬 완료 상태와 즉시 갱신은 유지합니다.
+    } finally {
+      setCompleting(false);
+    }
   };
 
   return (
@@ -236,16 +300,14 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
           </div>
           <div className="min-w-0">
             <p className="text-lg font-bold text-ink truncate">{vendor.name}</p>
-            {!directOrderMessage && (
-              <span
-                className={`inline-flex items-center gap-1.5 text-xs font-semibold ${
-                  ordered ? 'text-status-rejected' : 'text-status-working'
-                }`}
-              >
-                <span className={`w-1.5 h-1.5 rounded-full ${ordered ? 'bg-status-rejected' : 'bg-status-working'}`} />
-                {ordered ? '오늘 발주완료' : '미발주'}
-              </span>
-            )}
+            <span
+              className={`inline-flex items-center gap-1.5 text-xs font-semibold ${
+                ordered ? 'text-status-rejected' : 'text-status-working'
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${ordered ? 'bg-status-rejected' : 'bg-status-working'}`} />
+              {ordered ? '오늘 발주완료' : '미발주'}
+            </span>
           </div>
         </div>
         <button
@@ -257,8 +319,31 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
         </button>
       </div>
 
-      {!directOrderMessage && (
+      {!isKimchiVendor && (
         <p className="text-xs text-ink-faint">마지막 발주 · {lastOrderText ?? '기록 없음'}</p>
+      )}
+
+      {isKimchiVendor && (
+        <div className="rounded-[20px] bg-[#F7F9FC] p-4 ring-1 ring-black/[0.04]">
+          <p className="text-[11px] font-semibold text-ink-faint">최근 발주</p>
+          {recentOrder ? (
+            <div className="mt-2 flex items-end justify-between gap-3">
+              <div>
+                <p className="text-sm font-bold text-ink">
+                  {vendorService.formatLastOrder(recentOrder.completedAt)}
+                </p>
+                <p className="mt-1 text-sm font-semibold text-ink-soft">
+                  발주자 · {recentOrder.completedByName}
+                </p>
+              </div>
+              <span className="shrink-0 rounded-full bg-status-working-bg px-2.5 py-1 text-[10px] font-bold text-status-working">
+                발주 완료
+              </span>
+            </div>
+          ) : (
+            <p className="mt-2 text-sm font-medium text-ink-faint">아직 발주 기록이 없습니다.</p>
+          )}
+        </div>
       )}
 
       {/* 직접 메시지형 거래처는 상품/수량/고정발주 영역을 렌더링하지 않습니다. */}
@@ -375,15 +460,14 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
         </button>
       </div>
 
-      {!directOrderMessage && (
-        <button
-          onClick={handleMarkOrdered}
-          className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-ink px-3 py-3 text-sm font-bold text-white press-scale"
-        >
-          <CheckCircle2 size={18} />
-          <span>발주 완료</span>
-        </button>
-      )}
+      <button
+        onClick={handleMarkOrdered}
+        disabled={completing}
+        className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-ink px-3 py-3 text-sm font-bold text-white press-scale disabled:opacity-50"
+      >
+        <CheckCircle2 size={18} />
+        <span>{completing ? '저장 중...' : '발주 완료'}</span>
+      </button>
 
       <p className="text-[11px] text-ink-faint text-center -mt-1">
         {vendor.contactName} · {phoneDisplay}
