@@ -227,6 +227,7 @@ export function WorkTimeAdminPage() {
           employeeId={employeeId}
           date={selectedDate}
           existing={selectedRecord}
+          scheduleShift={monthShifts.find((shift) => shift.date === selectedDate)}
           editedBy={session!.employeeId}
         />
       )}

@@ -56,4 +56,13 @@ export const workTimeRepository = {
     if (error) throw error;
     return rowToWorkTime(data);
   },
+
+  async remove(employeeId: string, date: string): Promise<void> {
+    const { error } = await supabase
+      .from('attendance')
+      .delete()
+      .eq('employee_id', employeeId)
+      .eq('date', date);
+    if (error) throw error;
+  },
 };

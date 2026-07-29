@@ -7,7 +7,7 @@ import { workTimeService } from '@/services/workTimeService';
 import { useToast } from '@/components/common/Toast';
 import { formatMonthDay, getWeekdayLabel } from '@/utils/date';
 import { minutesToHourText } from '@/utils/time';
-import type { WorkTimeRecord } from '@/data/types';
+import type { ShiftEntry, WorkTimeRecord } from '@/data/types';
 
 interface WorkTimeEntryModalProps {
   open: boolean;
@@ -16,6 +16,7 @@ interface WorkTimeEntryModalProps {
   employeeId: string;
   date: string;
   existing?: WorkTimeRecord;
+  scheduleShift?: ShiftEntry;
   editedBy: string;
 }
 
@@ -26,6 +27,7 @@ export function WorkTimeEntryModal({
   employeeId,
   date,
   existing,
+  scheduleShift,
   editedBy,
 }: WorkTimeEntryModalProps) {
   const { showToast } = useToast();
@@ -35,6 +37,12 @@ export function WorkTimeEntryModal({
   const [error, setError] = useState('');
   const [preview, setPreview] = useState<number | null>(existing?.workedMinutes ?? null);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const scheduleText =
+    scheduleShift?.status === 'working' && scheduleShift.startTime && scheduleShift.endTime
+      ? `${scheduleShift.startTime.slice(0, 5)} ~ ${scheduleShift.endTime.slice(0, 5)}`
+      : '휴무';
 
   const handleSave = async () => {
     if (saving) return;
@@ -75,17 +83,46 @@ export function WorkTimeEntryModal({
     }
   };
 
+  const handleDelete = async () => {
+    if (!existing || deleting) return;
+    if (!window.confirm('이 날짜의 근로시간 기록을 삭제할까요?')) return;
+    setDeleting(true);
+    setError('');
+    try {
+      await workTimeService.remove(employeeId, date);
+      showToast('근로시간 기록이 삭제되었습니다.');
+      onSaved();
+      onClose();
+    } catch {
+      setError('근로시간 기록을 삭제하지 못했습니다. 다시 시도해주세요.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <Modal
       open={open}
       onClose={onClose}
       title={`${formatMonthDay(date)} (${getWeekdayLabel(date)}) 근로시간`}
       footer={
-        <Button fullWidth onClick={handleSave} disabled={saving}>
-          {saving ? '저장 중...' : '저장'}
-        </Button>
+        <div className="flex w-full gap-2">
+          {existing && (
+            <Button variant="danger" fullWidth onClick={handleDelete} disabled={saving || deleting}>
+              {deleting ? '삭제 중...' : '삭제'}
+            </Button>
+          )}
+          <Button fullWidth onClick={handleSave} disabled={saving || deleting}>
+            {saving ? '저장 중...' : existing ? '수정 저장' : '저장'}
+          </Button>
+        </div>
       }
     >
+      <div className="mb-4 rounded-2xl bg-brand-beige-light px-4 py-3">
+        <p className="text-xs font-medium text-ink-faint">스케줄 · 참고용</p>
+        <p className="mt-1 text-sm font-bold text-ink">스케줄 : {scheduleText}</p>
+        <p className="mt-1 text-[11px] text-ink-soft">스케줄과 관계없이 실제 근무시간을 입력할 수 있습니다.</p>
+      </div>
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div className="rounded-2xl bg-status-working-bg px-4 py-3">
           <p className="text-xs font-semibold text-status-working">출근</p>

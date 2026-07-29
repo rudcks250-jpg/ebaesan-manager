@@ -234,6 +234,7 @@ function StaffDashboard({ employeeId }: { employeeId: string }) {
           employeeId={employeeId}
           date={today}
           existing={todayRecord}
+          scheduleShift={data.todayShift}
           editedBy={employeeId}
         />
       )}

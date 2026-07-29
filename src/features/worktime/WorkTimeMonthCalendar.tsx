@@ -47,8 +47,7 @@ export function WorkTimeMonthCalendar({
             <button
               key={date}
               type="button"
-              disabled={!isWorkingDay}
-              onClick={() => isWorkingDay && onSelectDate(date)}
+              onClick={() => onSelectDate(date)}
               className={`aspect-square rounded-control flex flex-col items-center justify-center gap-0.5 text-xs ${
                 date === todayStr() ? 'ring-2 ring-brand-red' : ''
               } ${
@@ -56,7 +55,7 @@ export function WorkTimeMonthCalendar({
                   ? 'bg-status-working-bg'
                   : isWorkingDay
                     ? 'bg-brand-beige-light'
-                    : 'bg-status-rejected-bg cursor-default'
+                    : 'bg-status-rejected-bg'
               }`}
             >
               <span className="font-semibold text-ink">{Number(date.slice(-2))}</span>

@@ -71,6 +71,7 @@ export function WorkTimeCalendarPage({ employeeId }: { employeeId: string }) {
           employeeId={employeeId}
           date={selectedDate}
           existing={recordOf(selectedDate)}
+          scheduleShift={shifts.find((shift) => shift.date === selectedDate)}
           editedBy={employeeId}
         />
       )}

@@ -35,6 +35,10 @@ export const workTimeService = {
     return workTimeRepository.findByEmployeeAndDate(employeeId, date);
   },
 
+  async remove(employeeId: string, date: string): Promise<void> {
+    return workTimeRepository.remove(employeeId, date);
+  },
+
   // 수동 입력/수정 (직원 본인 또는 관리자)
   async saveManualEntry(input: ManualEntryInput, editedBy: string): Promise<SaveResult> {
     const validationError = validateClockTimes(input.clockIn, input.clockOut, input.breakMinutes);
