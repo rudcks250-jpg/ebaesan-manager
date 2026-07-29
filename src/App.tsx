@@ -2,8 +2,6 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ToastProvider } from '@/components/common/Toast';
 import { AppRouter } from '@/router/AppRouter';
 import { PasswordChangeModal } from '@/features/auth/PasswordChangeModal';
-import { NotificationPermissionPrompt } from '@/features/settings/NotificationPermissionPrompt';
-import { NotificationReadMarker } from '@/features/settings/NotificationReadMarker';
 
 function GlobalGates() {
   const { session, requirePasswordChange } = useAuth();
@@ -20,8 +18,6 @@ function App() {
       <ToastProvider>
         <AppRouter />
         <GlobalGates />
-        <NotificationPermissionPrompt />
-        <NotificationReadMarker />
       </ToastProvider>
     </AuthProvider>
   );

@@ -5,7 +5,7 @@ import { BottomNav } from '@/components/layout/BottomNav';
 import { Header } from '@/components/layout/Header';
 import { useAuth } from '@/contexts/AuthContext';
 import { PageHeader } from '@/components/common/PageHeader';
-import { Bell, CalendarDays, Clock3, Coffee, LayoutDashboard, Package, Users, WalletCards } from 'lucide-react';
+import { CalendarDays, Clock3, Coffee, LayoutDashboard, Package, Users, WalletCards } from 'lucide-react';
 
 const PAGE_META = {
   '대시보드': { description: '매장의 오늘을 한눈에 보고, 다음 행동에 집중하세요.', icon: LayoutDashboard },
@@ -17,8 +17,6 @@ const PAGE_META = {
   '급여관리': { description: '근무 기록에서 정산까지 투명하게 확인하세요.', icon: WalletCards },
   '급여명세': { description: '직원별 근무와 지급 내역을 자세히 확인하세요.', icon: WalletCards },
   '근로시간': { description: '출퇴근과 누적 근무시간을 정확하게 기록하세요.', icon: Clock3 },
-  '알림 설정': { description: '받고 싶은 알림과 현재 기기의 연결 상태를 관리하세요.', icon: Bell },
-  '알림 관리': { description: '직원 알림을 발송하고 성공·실패·읽음 이력을 확인하세요.', icon: Bell },
 };
 
 export function Layout({ title, children, showGreeting = true }: { title: string; children: ReactNode; showGreeting?: boolean }) {
