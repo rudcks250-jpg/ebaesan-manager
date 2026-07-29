@@ -1,21 +1,15 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { ScheduleCell } from '@/features/schedule/ScheduleCell';
+import {
+  calculateScheduleCoverage,
+  MINIMUM_FIVE_PM_STAFF,
+} from '@/features/schedule/scheduleCoverage';
 import { parseDate, isToday, todayStr, getWeekdayLabel } from '@/utils/date';
 import { getEmployeeAccent } from '@/utils/employeeAccent';
 import type { Employee, ShiftEntry } from '@/data/types';
 
 const WEEKDAY_LABELS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 const MOBILE_WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
-const REQUIRED_TOTAL_BY_WEEKDAY: Record<number, number> = {
-  0: 7,
-  1: 7,
-  2: 7,
-  3: 7,
-  4: 7,
-  5: 8,
-  6: 7,
-};
-
 interface ScheduleGridProps {
   employees: Employee[];
   weekDates: string[];
@@ -61,32 +55,7 @@ export function ScheduleGrid({
     setSelectedMobileDate(weekDates.includes(today) ? today : weekDates[0]);
   }, [weekDates]);
   const coverage = useMemo(
-    () =>
-      weekDates.map((date) => {
-        const workingShifts = shifts.filter(
-          (shift) =>
-            shift.date === date &&
-            shift.status === 'working' &&
-            !!shift.startTime &&
-            !!shift.endTime
-        );
-        const total = workingShifts.length;
-        const byFive = workingShifts.filter(
-          (shift) => !!shift.startTime && shift.startTime <= '17:00'
-        ).length;
-        const requiredTotal = REQUIRED_TOTAL_BY_WEEKDAY[parseDate(date).getDay()];
-        const totalShort = total < requiredTotal;
-        const fiveShort = byFive < 4;
-        const reason =
-          totalShort && fiveShort
-            ? '총/17시 부족'
-            : totalShort
-              ? '총 인원 부족'
-              : fiveShort
-                ? '17시 인원 부족'
-                : '정상';
-        return { date, total, byFive, requiredTotal, isNormal: !totalShort && !fiveShort, reason };
-      }),
+    () => calculateScheduleCoverage(weekDates, shifts),
     [shifts, weekDates]
   );
 
@@ -253,12 +222,19 @@ export function ScheduleGrid({
             </tr>
             <tr>
               <th className="sticky left-0 z-20 bg-white px-4 py-3 text-left text-xs font-semibold text-ink-soft">
-                17시 가능 인원
+                17시 인원
               </th>
               {coverage.map((item) => (
-                <td key={item.date} className="bg-white px-2 py-3 text-center text-sm font-bold text-ink">
-                  {item.byFive}명
-                  <span className="ml-1 text-[10px] font-medium text-ink-faint">/ 4</span>
+                <td key={item.date} className="bg-white px-1 py-2.5 text-center">
+                  <p className="text-xs font-bold text-ink">
+                    {item.atFive}명
+                    <span className="ml-1 text-[9px] font-medium text-ink-faint">
+                      / 최소 {MINIMUM_FIVE_PM_STAFF}명
+                    </span>
+                  </p>
+                  <p className={`mt-1 text-[10px] font-bold ${item.fiveAvailable ? 'text-status-working' : 'text-status-rejected'}`}>
+                    {item.fiveAvailable ? '✅ 가능' : '❌ 부족'}
+                  </p>
                 </td>
               ))}
             </tr>
@@ -362,7 +338,12 @@ export function ScheduleGrid({
               </div>
               <div>
                 <p className="text-[10px] font-medium text-ink-faint">17시 인원</p>
-                <p className="mt-1 text-sm font-bold text-ink">{selectedMobileCoverage.byFive}/4</p>
+                <p className="mt-1 text-xs font-bold text-ink">
+                  {selectedMobileCoverage.atFive}명 / 최소 {MINIMUM_FIVE_PM_STAFF}명
+                </p>
+                <p className={`mt-1 text-[11px] font-bold ${selectedMobileCoverage.fiveAvailable ? 'text-status-working' : 'text-status-rejected'}`}>
+                  {selectedMobileCoverage.fiveAvailable ? '✅ 가능' : '❌ 부족'}
+                </p>
               </div>
               <div>
                 <p className="text-[10px] font-medium text-ink-faint">상태</p>
