@@ -1,6 +1,5 @@
 import { workTimeRepository } from '@/repositories/workTimeRepository';
-import { calcWorkedMinutes, nowHHmm, validateClockTimes } from '@/utils/time';
-import { todayStr } from '@/utils/date';
+import { calcWorkedMinutes, validateClockTimes } from '@/utils/time';
 import type { WorkTimeRecord } from '@/data/types';
 
 export interface ManualEntryInput {
@@ -34,25 +33,6 @@ export const workTimeService = {
 
   async get(employeeId: string, date: string): Promise<WorkTimeRecord | undefined> {
     return workTimeRepository.findByEmployeeAndDate(employeeId, date);
-  },
-
-  // 출근하기 버튼
-  async clockIn(employeeId: string): Promise<WorkTimeRecord> {
-    const date = todayStr();
-    return workTimeRepository.upsert(employeeId, date, { clockIn: nowHHmm(), isAutoClockIn: true });
-  },
-
-  // 퇴근하기 버튼
-  async clockOut(employeeId: string): Promise<SaveResult> {
-    const date = todayStr();
-    const existing = await workTimeRepository.findByEmployeeAndDate(employeeId, date);
-    if (!existing || !existing.clockIn) {
-      return { success: false, errorMessage: '출근 기록이 없습니다. 먼저 출근하기를 눌러주세요.' };
-    }
-    const time = nowHHmm();
-    const workedMinutes = calcWorkedMinutes(existing.clockIn, time, existing.breakMinutes);
-    const updated = await workTimeRepository.upsert(employeeId, date, { clockOut: time, workedMinutes });
-    return { success: true, record: updated };
   },
 
   // 수동 입력/수정 (직원 본인 또는 관리자)

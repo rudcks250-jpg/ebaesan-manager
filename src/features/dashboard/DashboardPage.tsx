@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Layout } from '@/components/layout/Layout';
 import { Card } from '@/components/common/Card';
-import { Button } from '@/components/common/Button';
 import { NoticeCard } from '@/features/dashboard/NoticeCard';
 import { LeaveStatusBadge } from '@/features/leave/LeaveStatusBadge';
 import { WorkTimeEntryModal } from '@/features/worktime/WorkTimeEntryModal';
 import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/components/common/Toast';
 import { useNavigate } from 'react-router-dom';
 import { dashboardService } from '@/services/dashboardService';
 import { workTimeService } from '@/services/workTimeService';
@@ -192,7 +190,6 @@ function AdminDashboard() {
 }
 
 function StaffDashboard({ employeeId }: { employeeId: string }) {
-  const { showToast } = useToast();
   const navigate = useNavigate();
   const [refreshKey, setRefreshKey] = useState(0);
   const [entryModalOpen, setEntryModalOpen] = useState(false);
@@ -204,22 +201,6 @@ function StaffDashboard({ employeeId }: { employeeId: string }) {
     dashboardService.getStaffDashboard(employeeId).then(setData);
     workTimeService.get(employeeId, today).then(setTodayRecord);
   }, [employeeId, today, refreshKey]);
-
-  const handleClockIn = async () => {
-    await workTimeService.clockIn(employeeId);
-    showToast('출근 처리되었습니다.');
-    setRefreshKey((k) => k + 1);
-  };
-
-  const handleClockOut = async () => {
-    const result = await workTimeService.clockOut(employeeId);
-    if (!result.success) {
-      showToast(result.errorMessage, 'error');
-      return;
-    }
-    showToast('퇴근 처리되었습니다.');
-    setRefreshKey((k) => k + 1);
-  };
 
   if (!data) return <p className="text-sm text-ink-faint text-center py-10">불러오는 중...</p>;
 
@@ -236,20 +217,7 @@ function StaffDashboard({ employeeId }: { employeeId: string }) {
       <Card>
         <p className="text-sm text-ink-soft mb-1">오늘 근무</p>
         <p className="text-3xl font-bold text-ink mb-4">{todayShiftText}</p>
-        {!data.isClockedInToday && data.todayShift?.status === 'working' && (
-          <Button fullWidth onClick={handleClockIn}>
-            출근하기
-          </Button>
-        )}
-        {data.isClockedInToday && !data.isClockedOutToday && (
-          <Button fullWidth variant="danger" onClick={handleClockOut}>
-            퇴근하기
-          </Button>
-        )}
-        {data.isClockedOutToday && (
-          <p className="text-sm text-status-working font-semibold mb-3">오늘 근무를 완료했습니다.</p>
-        )}
-        {/* 근로시간 탭과 동일한 오늘 기록을 직접 입력/수정 (출퇴근 버튼과 별개, 근로시간 탭과 동일한 데이터 사용) */}
+        {/* 근로시간 탭과 동일한 오늘 기록을 직접 입력/수정 */}
         <button
           onClick={() => setEntryModalOpen(true)}
           className="w-full text-sm font-semibold text-brand-red mt-3 press-scale"
