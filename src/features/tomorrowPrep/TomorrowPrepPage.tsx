@@ -12,7 +12,9 @@ import {
   addDays,
   formatDate,
   formatDateTimeKo,
+  formatMonthDay,
   getMondayOfWeekStr,
+  getWeekdayLabel,
   parseDate,
   todayStr,
 } from '@/utils/date';
@@ -30,6 +32,13 @@ const CHECKLIST = [
   ['salt', '소금'],
   ['ssamjang', '쌈장'],
   ['milmyeon-broth', '밀면육수'],
+] as const;
+
+const CHECKLIST_CATEGORIES = [
+  { key: 'stew', icon: '🥘', title: '찌개', itemKeys: ['doenjang', 'gochujang'] },
+  { key: 'vegetable', icon: '🥬', title: '야채', itemKeys: ['kimchi', 'minari', 'onion', 'green-onion'] },
+  { key: 'cooking', icon: '🍳', title: '조리', itemKeys: ['steamed-egg', 'fried-rice-sauce', 'myeoljeot'] },
+  { key: 'etc', icon: '🥣', title: '기타', itemKeys: ['salt', 'ssamjang', 'milmyeon-broth'] },
 ] as const;
 
 function emptyItems(): OpeningPreparationItem[] {
@@ -164,7 +173,7 @@ export function TomorrowPrepPage() {
   };
 
   const handleConfirm = async () => {
-    if (!session || confirming) return;
+    if (!session || confirming || completedCount === 0) return;
     setConfirming(true);
     try {
       const saved = await openingPreparationRepository.confirm({
@@ -191,6 +200,8 @@ export function TomorrowPrepPage() {
     );
   }
 
+  const today = todayStr();
+
   return (
     <Layout title="내일 해야 할 것">
       <div className="space-y-5">
@@ -202,32 +213,32 @@ export function TomorrowPrepPage() {
 
         <Card className="overflow-hidden bg-gradient-to-br from-white to-brand-red-light/35">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <div className="flex items-center gap-2 text-ink">
-                <ClipboardList size={21} className="text-brand-red" />
-                <h2 className="text-xl font-bold">내일 해야 할 것</h2>
-              </div>
-              <div className="mt-5">
-                <p className="text-xs font-semibold text-ink-faint">마지막 확정</p>
-                {lastConfirmed ? (
-                  <>
-                    <p className="mt-1 text-base font-bold tabular-nums text-ink">{lastConfirmed}</p>
-                    <p className="mt-0.5 text-sm font-semibold text-ink-soft">
-                      {preparation?.confirmedByName}
-                    </p>
-                  </>
-                ) : (
-                  <p className="mt-1 text-sm font-medium text-ink-faint">아직 확정되지 않았습니다.</p>
-                )}
-              </div>
+            <div className="flex items-center gap-2 text-ink">
+              <ClipboardList size={21} className="text-brand-red" />
+              <h2 className="text-xl font-bold">내일 해야 할 것</h2>
             </div>
             <button
               onClick={handleConfirm}
-              disabled={confirming}
-              className="min-h-12 rounded-2xl bg-brand-red px-5 py-3 text-sm font-bold text-white shadow-[0_8px_20px_-10px_rgba(0,122,255,.9)] press-scale disabled:opacity-50"
+              disabled={confirming || completedCount === 0}
+              className="min-h-12 rounded-2xl bg-brand-red px-5 py-3 text-sm font-bold text-white shadow-[0_8px_20px_-10px_rgba(0,122,255,.9)] press-scale disabled:cursor-not-allowed disabled:bg-ink-faint disabled:opacity-50"
             >
               {confirming ? '확정 중...' : '내일 준비 확정'}
             </button>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl bg-white/85 p-4 ring-1 ring-black/[0.04]">
+              <p className="text-xs font-semibold text-ink-faint">오늘</p>
+              <p className="mt-1 text-lg font-bold tabular-nums text-ink">
+                {formatMonthDay(today)} ({getWeekdayLabel(today)})
+              </p>
+            </div>
+            <div className="rounded-2xl bg-brand-red-light/75 p-4 ring-1 ring-brand-red/10">
+              <p className="text-xs font-semibold text-brand-red">현재 보고 있는 준비</p>
+              <p className="mt-1 text-lg font-bold tabular-nums text-ink">
+                ▶ {formatMonthDay(targetDate)} 오픈 준비
+              </p>
+            </div>
           </div>
 
           <div className={`mt-5 rounded-2xl px-4 py-3 text-sm font-bold ${
@@ -238,9 +249,37 @@ export function TomorrowPrepPage() {
             {message.today ? '✅' : '⚠'} {message.text}
           </div>
 
-          {preparation?.confirmedAt && !dirtyAfterConfirm && (
-            <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">
-              <CheckCircle2 size={14} /> 확정 완료
+          <div className="mt-5 rounded-[22px] bg-white p-5 shadow-[0_10px_32px_-24px_rgba(15,23,42,.4)] ring-1 ring-black/[0.05]">
+            <p className="text-xs font-bold text-ink-faint">마지막 확정</p>
+            {lastConfirmed ? (
+              <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <p className="text-lg font-bold tabular-nums text-ink">{lastConfirmed}</p>
+                  <p className="mt-1 text-sm font-semibold text-ink-soft">{preparation?.confirmedByName}</p>
+                </div>
+                {!dirtyAfterConfirm && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">
+                    <CheckCircle2 size={14} /> 확정 완료
+                  </span>
+                )}
+              </div>
+            ) : (
+              <p className="mt-2 text-sm font-medium text-ink-faint">아직 확정되지 않았습니다.</p>
+            )}
+          </div>
+
+          {completedCount === 0 && (
+            <p className="mt-3 text-right text-xs font-semibold text-ink-faint">
+              한 항목 이상 완료해야 확정할 수 있습니다.
+            </p>
+          )}
+
+          {completedCount === items.length && (
+            <div className="mt-5 rounded-[22px] border border-emerald-100 bg-emerald-50 p-5 text-center">
+              <p className="text-3xl" aria-hidden="true">🎉</p>
+              <p className="mt-2 text-base font-bold text-emerald-800">
+                {message.today ? '오늘' : '내일'} 오픈 준비가 모두 완료되었습니다.
+              </p>
             </div>
           )}
 
@@ -268,36 +307,48 @@ export function TomorrowPrepPage() {
           </div>
         </Card>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {items.map((item) => (
-            <button
-              key={item.key}
-              onClick={() => toggleItem(item.key)}
-              disabled={!!savingKey}
-              className={`flex min-h-20 items-center gap-4 rounded-[22px] border p-4 text-left transition-all press-scale disabled:opacity-70 ${
-                item.completed
-                  ? 'border-emerald-100 bg-emerald-50 shadow-[0_8px_22px_-18px_rgba(16,185,129,.8)]'
-                  : 'border-black/[0.06] bg-white hover:border-brand-red/20 hover:shadow-premium'
-              }`}
-            >
-              <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
-                item.completed ? 'bg-emerald-500 text-white' : 'bg-brand-beige-light text-ink-faint'
-              }`}>
-                {item.completed ? <Check size={20} strokeWidth={3} /> : <span className="h-4 w-4 rounded border-2 border-current" />}
-              </span>
-              <span className="min-w-0">
-                <span className={`block text-base font-bold ${item.completed ? 'text-emerald-800' : 'text-ink'}`}>
-                  {item.label}
-                </span>
-                {item.completed && (
-                  <span className="mt-0.5 block truncate text-xs font-medium text-emerald-700">
-                    {item.completedByName} · {item.completedAt ? formatDateTimeKo(item.completedAt) : ''}
-                  </span>
-                )}
-              </span>
-            </button>
-          ))}
-        </div>
+        {CHECKLIST_CATEGORIES.map((category) => (
+          <section key={category.key}>
+            <h2 className="mb-3 px-1 text-base font-bold text-ink">
+              <span className="mr-2" aria-hidden="true">{category.icon}</span>
+              {category.title}
+            </h2>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {category.itemKeys.map((itemKey) => {
+                const item = items.find((candidate) => candidate.key === itemKey);
+                if (!item) return null;
+                return (
+                  <button
+                    key={item.key}
+                    onClick={() => toggleItem(item.key)}
+                    disabled={!!savingKey}
+                    className={`flex min-h-20 items-center gap-4 rounded-[22px] border p-4 text-left transition-all press-scale disabled:opacity-70 ${
+                      item.completed
+                        ? 'border-emerald-100 bg-emerald-50 shadow-[0_8px_22px_-18px_rgba(16,185,129,.8)]'
+                        : 'border-black/[0.06] bg-white hover:border-brand-red/20 hover:shadow-premium'
+                    }`}
+                  >
+                    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                      item.completed ? 'bg-emerald-500 text-white' : 'bg-brand-beige-light text-ink-faint'
+                    }`}>
+                      {item.completed ? <Check size={20} strokeWidth={3} /> : <span className="h-4 w-4 rounded border-2 border-current" />}
+                    </span>
+                    <span className="min-w-0">
+                      <span className={`block text-base font-bold ${item.completed ? 'text-emerald-800' : 'text-ink'}`}>
+                        {item.label}
+                      </span>
+                      {item.completed && (
+                        <span className="mt-0.5 block truncate text-xs font-medium text-emerald-700">
+                          {item.completedByName} · {item.completedAt ? formatDateTimeKo(item.completedAt) : ''}
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ))}
       </div>
     </Layout>
   );
