@@ -1,9 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Copy, TrendingDown, TrendingUp } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { Card } from '@/components/common/Card';
 import { Button } from '@/components/common/Button';
 import { Textarea } from '@/components/common/Input';
+import { Spinner } from '@/components/common/Spinner';
+import { useToast } from '@/components/common/Toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabaseClient';
 import { employeeService } from '@/services/employeeService';
 import type { Employee } from '@/data/types';
 
@@ -16,19 +20,20 @@ interface MonthlyProfitLoss {
   labor: AmountMap;
   ads: AmountMap;
   operations: AmountMap;
+  fixedCosts: AmountMap;
   taxReserve: number;
   memo: string;
   updatedAt: string;
 }
 
-const STORAGE_KEY = 'ebaesan.profit-loss.v1';
 const FULL_TIME = ['김경재', '박경찬', '김하은'];
 const FOOD = ['축산유통', '식자재유통'];
 const DRINKS = ['주류', '음료'];
-const ADS = ['메타', '네이버', '리워드', '블로그리뷰', '기타'];
-const OPERATIONS = [
-  '카드값', '임대료', '전기세', '수도요금', '가스', '세무기장료',
-  '음식물처리', '화재보험', '외식업협회비', '4대보험', '기타운영비',
+const ADS = ['플레이스 광고', '메타 광고', '리워드', '당근 광고', '블로그 리뷰'];
+const OPERATIONS = ['카드수수료', '4대보험', '기타운영비'];
+const FIXED_COSTS = [
+  '임대료', '전기세', '카드값', '외식업협회비', '화재보험',
+  '세무기장료', '음식물처리', '수도요금', '가스',
 ];
 
 function emptyMap(keys: string[]): AmountMap {
@@ -43,18 +48,26 @@ function emptyMonth(employeeNames: string[] = []): MonthlyProfitLoss {
     labor: emptyMap([...FULL_TIME, ...employeeNames.filter((name) => !FULL_TIME.includes(name))]),
     ads: emptyMap(ADS),
     operations: emptyMap(OPERATIONS),
+    fixedCosts: emptyMap(FIXED_COSTS),
     taxReserve: 0,
     memo: '',
     updatedAt: new Date().toISOString(),
   };
 }
 
-function loadAll(): Record<string, MonthlyProfitLoss> {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}') as Record<string, MonthlyProfitLoss>;
-  } catch {
-    return {};
-  }
+function normalizeMonth(value: MonthlyProfitLoss | undefined, employeeNames: string[] = []): MonthlyProfitLoss {
+  const fallback = emptyMonth(employeeNames);
+  if (!value) return fallback;
+  return {
+    ...fallback,
+    ...value,
+    food: { ...fallback.food, ...(value.food ?? {}) },
+    drinks: { ...fallback.drinks, ...(value.drinks ?? {}) },
+    labor: { ...fallback.labor, ...(value.labor ?? {}) },
+    ads: { ...fallback.ads, ...(value.ads ?? {}) },
+    operations: { ...fallback.operations, ...(value.operations ?? {}) },
+    fixedCosts: { ...fallback.fixedCosts, ...(value.fixedCosts ?? {}) },
+  };
 }
 
 function monthKey(date: Date): string {
@@ -153,20 +166,50 @@ function ExpenseSection({
 }
 
 export function ProfitLossPage() {
+  const { session } = useAuth();
+  const { showToast } = useToast();
   const [selectedMonth, setSelectedMonth] = useState(monthKey(new Date()));
-  const [allData, setAllData] = useState<Record<string, MonthlyProfitLoss>>(loadAll);
+  const [allData, setAllData] = useState<Record<string, MonthlyProfitLoss>>({});
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const current = allData[selectedMonth] ?? emptyMonth();
-  const previous = allData[shiftMonth(selectedMonth, -1)] ?? emptyMonth();
+  const [loaded, setLoaded] = useState(false);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const employeeNames = employees.map((employee) => employee.name);
+  const current = normalizeMonth(allData[selectedMonth], employeeNames);
+  const previous = normalizeMonth(allData[shiftMonth(selectedMonth, -1)], employeeNames);
 
   useEffect(() => {
     void employeeService.listActive().then(setEmployees).catch(() => setEmployees([]));
   }, []);
 
   useEffect(() => {
+    if (!session) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('profit_loss_months')
+        .select('year_month,data');
+      if (cancelled) return;
+      if (error) {
+        showToast('손익계산서 데이터를 불러오지 못했습니다.');
+        setLoaded(true);
+        return;
+      }
+      const months = Object.fromEntries(
+        (data ?? []).map((row) => [row.year_month, row.data as unknown as MonthlyProfitLoss])
+      );
+      setAllData(months);
+      setLoaded(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [session, showToast]);
+
+  useEffect(() => {
     const names = employees.map((employee) => employee.name);
     setAllData((existing) => {
-      const month = existing[selectedMonth] ?? emptyMonth(names);
+      const month = normalizeMonth(existing[selectedMonth], names);
       const labor = { ...emptyMap([...FULL_TIME, ...names.filter((name) => !FULL_TIME.includes(name))]), ...month.labor };
       if (existing[selectedMonth] && Object.keys(labor).length === Object.keys(month.labor).length) return existing;
       return { ...existing, [selectedMonth]: { ...month, labor } };
@@ -174,8 +217,30 @@ export function ProfitLossPage() {
   }, [employees, selectedMonth]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(allData));
-  }, [allData]);
+    if (!loaded || !session || !allData[selectedMonth]) return;
+    clearTimeout(saveTimer.current);
+    setSaveState('saving');
+    const monthToSave = selectedMonth;
+    const dataToSave = allData[selectedMonth];
+    saveTimer.current = setTimeout(() => {
+      void supabase
+        .from('profit_loss_months')
+        .upsert({
+          year_month: monthToSave,
+          data: dataToSave,
+          updated_by: session.employeeId,
+        })
+        .then(({ error }) => {
+          if (error) {
+            setSaveState('error');
+            showToast('자동 저장에 실패했습니다.');
+          } else {
+            setSaveState('saved');
+          }
+        });
+    }, 600);
+    return () => clearTimeout(saveTimer.current);
+  }, [allData, loaded, selectedMonth, session, showToast]);
 
   const totals = useMemo(() => {
     const food = sum(current.food);
@@ -183,10 +248,11 @@ export function ProfitLossPage() {
     const labor = sum(current.labor);
     const ads = sum(current.ads);
     const operations = sum(current.operations);
+    const fixedCosts = sum(current.fixedCosts);
     const cost = food + drinks;
-    const operatingProfit = current.sales - cost - labor - ads - operations;
+    const operatingProfit = current.sales - cost - labor - ads - operations - fixedCosts;
     const netProfit = operatingProfit - current.taxReserve;
-    return { food, drinks, labor, ads, operations, cost, operatingProfit, netProfit };
+    return { food, drinks, labor, ads, operations, fixedCosts, cost, operatingProfit, netProfit };
   }, [current]);
 
   const previousTotals = useMemo(() => {
@@ -195,9 +261,10 @@ export function ProfitLossPage() {
     const labor = sum(previous.labor);
     const ads = sum(previous.ads);
     const operations = sum(previous.operations);
+    const fixedCosts = sum(previous.fixedCosts);
     const cost = food + drinks;
-    const operatingProfit = previous.sales - cost - labor - ads - operations;
-    return { food, drinks, labor, ads, operations, operatingProfit, netProfit: operatingProfit - previous.taxReserve };
+    const operatingProfit = previous.sales - cost - labor - ads - operations - fixedCosts;
+    return { food, drinks, labor, ads, operations, fixedCosts, operatingProfit, netProfit: operatingProfit - previous.taxReserve };
   }, [previous]);
 
   const update = (patch: Partial<MonthlyProfitLoss>) => {
@@ -207,7 +274,7 @@ export function ProfitLossPage() {
     }));
   };
 
-  const updateMap = (field: 'food' | 'drinks' | 'labor' | 'ads' | 'operations', key: string, value: number) => {
+  const updateMap = (field: 'food' | 'drinks' | 'labor' | 'ads' | 'operations' | 'fixedCosts', key: string, value: number) => {
     update({ [field]: { ...current[field], [key]: value } });
   };
 
@@ -223,6 +290,9 @@ export function ProfitLossPage() {
 
   return (
     <Layout title="월 손익계산서">
+      {!loaded ? (
+        <div className="flex min-h-64 items-center justify-center"><Spinner /></div>
+      ) : (
       <div className="space-y-5">
         <Card className="sticky top-3 z-20">
           <div className="flex items-center justify-between gap-2">
@@ -231,6 +301,9 @@ export function ProfitLossPage() {
             <Button size="sm" variant="ghost" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))}>다음달 <ChevronRight size={17} /></Button>
           </div>
           <div className="mt-4 flex justify-end">
+            <span className={`mr-3 self-center text-xs font-semibold ${saveState === 'error' ? 'text-red-500' : 'text-ink-faint'}`}>
+              {saveState === 'saving' ? '저장 중…' : saveState === 'saved' ? '자동 저장됨' : saveState === 'error' ? '저장 실패' : ''}
+            </span>
             <Button size="sm" variant="secondary" onClick={() => {
               const source = allData[shiftMonth(selectedMonth, -1)];
               if (!source) return;
@@ -285,6 +358,7 @@ export function ProfitLossPage() {
 
         <ExpenseSection title="광고비" values={current.ads} sales={current.sales} previousTotal={previousTotals.ads} onChange={(key, value) => updateMap('ads', key, value)} />
         <ExpenseSection title="운영비" values={current.operations} sales={current.sales} previousTotal={previousTotals.operations} onChange={(key, value) => updateMap('operations', key, value)} />
+        <ExpenseSection title="고정비" values={current.fixedCosts} sales={current.sales} previousTotal={previousTotals.fixedCosts} onChange={(key, value) => updateMap('fixedCosts', key, value)} />
 
         <Card>
           <div className="flex items-center justify-between gap-3"><h2 className="text-lg font-bold text-ink">빼놓은 세금</h2><p className="text-xl font-bold text-ink">{won(current.taxReserve)}</p></div>
@@ -297,6 +371,7 @@ export function ProfitLossPage() {
           <p className="text-right text-xs text-ink-faint">입력 내용은 월별로 자동 저장됩니다.</p>
         </Card>
       </div>
+      )}
     </Layout>
   );
 }
