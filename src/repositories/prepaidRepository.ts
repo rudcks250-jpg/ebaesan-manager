@@ -34,6 +34,12 @@ function mapCustomer(row: Row, transactions: Row[]): PrepaidCustomer {
     const date = String(b.transaction_date).localeCompare(String(a.transaction_date));
     return date || String(b.created_at).localeCompare(String(a.created_at));
   })[0];
+  const latestUsage = [...transactions]
+    .filter((transaction) => transaction.transaction_type === 'usage')
+    .sort((a, b) => {
+      const date = String(b.transaction_date).localeCompare(String(a.transaction_date));
+      return date || String(b.created_at).localeCompare(String(a.created_at));
+    })[0];
   return {
     id: String(row.id),
     name: String(row.name),
@@ -45,6 +51,7 @@ function mapCustomer(row: Row, transactions: Row[]): PrepaidCustomer {
     needsReview: Boolean(row.needs_review),
     balance,
     lastTransactionAt: latest ? String(latest.transaction_date) : undefined,
+    lastUsedAt: latestUsage ? String(latestUsage.transaction_date) : undefined,
     createdBy: String(row.created_by),
     createdByName: String(row.created_by_name),
     createdAt: String(row.created_at),
@@ -86,6 +93,24 @@ export const prepaidRepository = {
     }).select().single();
     if (error) throw error;
     return mapCustomer(data, []);
+  },
+
+  async createOrAddDeposit(input: {
+    name: string;
+    phone?: string;
+    amount: number;
+    transactionDate: string;
+    memo?: string;
+  }): Promise<string> {
+    const { data, error } = await supabase.rpc('create_or_add_prepaid_deposit', {
+      p_name: input.name.trim(),
+      p_phone: input.phone?.replace(/\D/g, '') ?? '',
+      p_amount: input.amount,
+      p_transaction_date: input.transactionDate,
+      p_memo: input.memo?.trim() || null,
+    });
+    if (error) throw error;
+    return String(data);
   },
 
   async updateCustomer(customerId: string, input: {

@@ -203,6 +203,7 @@ export interface PrepaidCustomer {
   needsReview: boolean;
   balance: number;
   lastTransactionAt?: string;
+  lastUsedAt?: string;
   createdBy: string;
   createdByName: string;
   createdAt: string;
