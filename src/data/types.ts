@@ -199,6 +199,8 @@ export interface PrepaidCustomer {
   contactPerson?: string;
   phone: string;
   memo?: string;
+  legacyNote?: string;
+  needsReview: boolean;
   balance: number;
   lastTransactionAt?: string;
   createdBy: string;
@@ -207,13 +209,16 @@ export interface PrepaidCustomer {
   updatedAt: string;
 }
 
-export type PrepaidTransactionType = 'deposit' | 'usage';
+export type PrepaidTransactionType = 'deposit' | 'usage' | 'adjustment';
+export type PrepaidAdjustmentDirection = 'increase' | 'decrease';
 
 export interface PrepaidTransaction {
   id: string;
   customerId: string;
   type: PrepaidTransactionType;
   amount: number;
+  effectAmount: number;
+  adjustmentDirection?: PrepaidAdjustmentDirection;
   transactionDate: string;
   memo?: string;
   createdBy: string;
@@ -221,6 +226,7 @@ export interface PrepaidTransaction {
   createdAt: string;
   updatedAt: string;
   balanceAfter: number;
+  needsReview: boolean;
 }
 
 // ---------------------------------------------------------

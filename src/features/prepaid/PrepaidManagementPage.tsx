@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowDownCircle, ArrowUpCircle, Pencil, Plus, Search, Trash2, UserRound } from 'lucide-react';
+import { ArrowDownCircle, ArrowUpCircle, Pencil, Plus, Search, UserRound } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { Card } from '@/components/common/Card';
 import { Button } from '@/components/common/Button';
@@ -36,6 +36,9 @@ export function PrepaidManagementPage() {
   const [query, setQuery] = useState('');
   const [customerModal, setCustomerModal] = useState<'create' | 'edit'>();
   const [transactionOpen, setTransactionOpen] = useState(false);
+  const [customerView, setCustomerView] = useState(false);
+  const [legacyOpen, setLegacyOpen] = useState(false);
+  const [duplicateCustomers, setDuplicateCustomers] = useState<PrepaidCustomer[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<'customer' | 'transaction'>();
   const [saving, setSaving] = useState(false);
 
@@ -45,6 +48,7 @@ export function PrepaidManagementPage() {
   const [phone, setPhone] = useState('');
   const [memo, setMemo] = useState('');
   const [transactionType, setTransactionType] = useState<PrepaidTransactionType>('deposit');
+  const [adjustmentDirection, setAdjustmentDirection] = useState<'increase' | 'decrease'>('increase');
   const [amount, setAmount] = useState('');
   const [transactionDate, setTransactionDate] = useState(todayStr());
 
@@ -109,8 +113,20 @@ export function PrepaidManagementPage() {
     setCustomerModal('edit');
   };
 
-  const saveCustomer = async () => {
+  const saveCustomer = async (allowDuplicate = false) => {
     if (!session || !name.trim() || !phone.replace(/\D/g, '') || saving) return;
+    if (customerModal === 'create' && !allowDuplicate) {
+      const normalizedPhone = phone.replace(/\D/g, '');
+      const duplicates = customers.filter((customer) =>
+        customer.name.trim() === name.trim()
+        || customer.phone.replace(/\D/g, '') === normalizedPhone
+        || (!!companyName.trim() && customer.companyName?.trim() === companyName.trim()),
+      );
+      if (duplicates.length > 0) {
+        setDuplicateCustomers(duplicates);
+        return;
+      }
+    }
     setSaving(true);
     try {
       const input = { name, companyName, contactPerson, phone, memo };
@@ -118,11 +134,13 @@ export function PrepaidManagementPage() {
         await prepaidService.updateCustomer(selected.id, input);
         showToast('고객 정보를 수정했습니다.');
       } else {
-        await prepaidService.createCustomer({
+        const created = await prepaidService.createCustomer({
           ...input,
           employeeId: session.employeeId,
           employeeName: session.name,
         });
+        setSelected(created);
+        setTransactions([]);
         showToast('신규 고객을 등록했습니다.');
       }
       setCustomerModal(undefined);
@@ -137,6 +155,7 @@ export function PrepaidManagementPage() {
   const openNewTransaction = () => {
     setEditingTransaction(undefined);
     setTransactionType('deposit');
+    setAdjustmentDirection('increase');
     setAmount('');
     setTransactionDate(todayStr());
     setMemo('');
@@ -146,6 +165,7 @@ export function PrepaidManagementPage() {
   const openEditTransaction = (transaction: PrepaidTransaction) => {
     setEditingTransaction(transaction);
     setTransactionType(transaction.type);
+    setAdjustmentDirection(transaction.adjustmentDirection ?? 'increase');
     setAmount(String(transaction.amount));
     setTransactionDate(transaction.transactionDate);
     setMemo(transaction.memo ?? '');
@@ -163,6 +183,7 @@ export function PrepaidManagementPage() {
         transactionDate,
         memo,
         transactionId: editingTransaction?.id,
+        adjustmentDirection: transactionType === 'adjustment' ? adjustmentDirection : undefined,
       });
       setTransactionOpen(false);
       await Promise.all([load(), loadTransactions(selected.id)]);
@@ -225,6 +246,7 @@ export function PrepaidManagementPage() {
                     <div className="min-w-0">
                       <p className="truncate text-lg font-bold text-ink">{customer.name}</p>
                       {customer.companyName && <p className="mt-0.5 truncate text-sm text-ink-soft">{customer.companyName}</p>}
+                      {customer.contactPerson && <p className="mt-0.5 truncate text-xs text-ink-soft">담당자 {customer.contactPerson}</p>}
                       <p className="mt-1 text-xs text-ink-faint">{customer.phone}</p>
                     </div>
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-red-light text-brand-red">
@@ -233,7 +255,7 @@ export function PrepaidManagementPage() {
                   </div>
                   <div className="mt-6">
                     <p className="text-xs font-semibold text-ink-faint">현재 잔액</p>
-                    <p className="mt-1 text-3xl font-bold tracking-[-0.03em] text-ink">{currency(customer.balance)}</p>
+                      <p className={`mt-1 text-3xl font-bold tracking-[-0.03em] ${customer.balance > 0 ? 'text-emerald-600' : 'text-ink-faint'}`}>{currency(customer.balance)}</p>
                   </div>
                   <div className="mt-5">
                     <p className="text-[11px] text-ink-faint">최근 거래</p>
@@ -249,7 +271,7 @@ export function PrepaidManagementPage() {
       </div>
 
       <Modal
-        open={!!customerModal}
+        open={!!customerModal && duplicateCustomers.length === 0}
         onClose={() => setCustomerModal(undefined)}
         title={customerModal === 'edit' ? '고객 정보 수정' : '신규 고객'}
         footer={<Button fullWidth onClick={() => void saveCustomer()} disabled={saving || !name.trim() || !phone.replace(/\D/g, '')}>{saving ? '저장 중...' : '저장'}</Button>}
@@ -263,7 +285,7 @@ export function PrepaidManagementPage() {
         </div>
       </Modal>
 
-      {selected && !customerModal && !transactionOpen && (
+      {selected && !customerModal && !transactionOpen && !customerView && (
         <Modal
           open
           onClose={() => setSelected(undefined)}
@@ -283,7 +305,8 @@ export function PrepaidManagementPage() {
             </div>
             <div className="flex gap-2">
               <Button size="sm" variant="secondary" onClick={openEditCustomer}><span className="flex items-center gap-1"><Pencil size={14} /> 고객 수정</span></Button>
-              <Button size="sm" variant="danger" onClick={() => setDeleteTarget('customer')}><span className="flex items-center gap-1"><Trash2 size={14} /> 고객 삭제</span></Button>
+              <Button size="sm" variant="secondary" onClick={() => setCustomerView(true)}>손님에게 잔액 보여주기</Button>
+              {selected.legacyNote && <Button size="sm" variant="ghost" onClick={() => setLegacyOpen(true)}>기존 메모 보기</Button>}
             </div>
             <section>
               <p className="mb-3 font-bold text-ink">거래내역</p>
@@ -292,7 +315,12 @@ export function PrepaidManagementPage() {
               ) : (
                 <div className="space-y-3">
                   {transactions.map((transaction) => {
-                    const isDeposit = transaction.type === 'deposit';
+                    const isDeposit = transaction.effectAmount > 0;
+                    const typeLabel = transaction.type === 'deposit'
+                      ? '선결제'
+                      : transaction.type === 'usage'
+                        ? '사용'
+                        : `잔액 조정 (${isDeposit ? '증가' : '차감'})`;
                     return (
                       <button key={transaction.id} onClick={() => openEditTransaction(transaction)} className="w-full rounded-2xl border border-black/[0.05] bg-white p-4 text-left press-scale">
                         <div className="flex items-start justify-between gap-3">
@@ -304,7 +332,8 @@ export function PrepaidManagementPage() {
                               <p className={`text-lg font-bold ${isDeposit ? 'text-emerald-600' : 'text-red-500'}`}>
                                 {isDeposit ? '+' : '-'}{currency(transaction.amount)}
                               </p>
-                              <p className="text-sm font-semibold text-ink">{isDeposit ? '선결제' : '사용'}</p>
+                              <p className="text-sm font-semibold text-ink">{typeLabel}</p>
+                              {transaction.needsReview && <span className="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">검토 필요</span>}
                             </div>
                           </div>
                           <p className="text-xs text-ink-faint">{formatMonthDay(transaction.transactionDate)}</p>
@@ -345,11 +374,76 @@ export function PrepaidManagementPage() {
           <div className="mb-5 grid grid-cols-2 gap-2">
             <button onClick={() => setTransactionType('deposit')} className={`min-h-12 rounded-2xl font-bold ${transactionType === 'deposit' ? 'bg-emerald-50 text-emerald-700 ring-2 ring-emerald-500' : 'bg-brand-beige-light text-ink-soft'}`}>○ 선결제 (+)</button>
             <button onClick={() => setTransactionType('usage')} className={`min-h-12 rounded-2xl font-bold ${transactionType === 'usage' ? 'bg-red-50 text-red-600 ring-2 ring-red-400' : 'bg-brand-beige-light text-ink-soft'}`}>○ 사용 (-)</button>
+            <button onClick={() => setTransactionType('adjustment')} className={`col-span-2 min-h-12 rounded-2xl font-bold ${transactionType === 'adjustment' ? 'bg-amber-50 text-amber-700 ring-2 ring-amber-400' : 'bg-brand-beige-light text-ink-soft'}`}>○ 잔액 조정</button>
           </div>
+          {transactionType === 'adjustment' && (
+            <div className="mb-5 grid grid-cols-2 gap-2">
+              <button onClick={() => setAdjustmentDirection('increase')} className={`min-h-11 rounded-xl text-sm font-bold ${adjustmentDirection === 'increase' ? 'bg-emerald-50 text-emerald-700 ring-2 ring-emerald-400' : 'bg-brand-beige-light text-ink-soft'}`}>잔액 증가</button>
+              <button onClick={() => setAdjustmentDirection('decrease')} className={`min-h-11 rounded-xl text-sm font-bold ${adjustmentDirection === 'decrease' ? 'bg-red-50 text-red-600 ring-2 ring-red-400' : 'bg-brand-beige-light text-ink-soft'}`}>잔액 차감</button>
+            </div>
+          )}
           <Input label="금액" inputMode="numeric" value={amount} onChange={(event) => setAmount(event.target.value.replace(/\D/g, ''))} />
           {amountValue(amount) > 0 && <p className="-mt-2 mb-4 text-sm font-bold text-brand-red">{currency(amountValue(amount))}</p>}
           <Input label="등록일 / 사용일" type="date" value={transactionDate} onChange={(event) => setTransactionDate(event.target.value)} />
           <Textarea label="메모" value={memo} onChange={(event) => setMemo(event.target.value)} />
+        </div>
+      </Modal>
+
+      {selected && customerView && (
+        <Modal open onClose={() => setCustomerView(false)} title="고객 잔액 확인">
+          <div className="space-y-5 pb-5">
+            <div className="rounded-[24px] bg-ink p-6 text-white">
+              <p className="text-lg font-bold">이배산 숯불구이</p>
+              <p className="mt-5 text-2xl font-bold">{selected.name} 고객님</p>
+              <p className="mt-5 text-sm text-white/60">현재 선결제 잔액</p>
+              <p className="mt-1 text-4xl font-bold">{currency(selected.balance)}</p>
+            </div>
+            <div className="space-y-2">
+              {transactions.slice(0, 10).map((transaction) => (
+                <div key={transaction.id} className="flex items-center justify-between rounded-2xl bg-brand-beige-light p-4">
+                  <div>
+                    <p className="text-sm font-semibold text-ink">{formatMonthDay(transaction.transactionDate)}</p>
+                    <p className="text-xs text-ink-soft">{transaction.type === 'deposit' ? '선결제' : transaction.type === 'usage' ? '사용' : '잔액 조정'}</p>
+                  </div>
+                  <p className={`text-lg font-bold ${transaction.effectAmount > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                    {transaction.effectAmount > 0 ? '+' : '-'}{currency(Math.abs(transaction.effectAmount))}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <Button fullWidth variant="secondary" onClick={() => {
+              const latest = transactions[0];
+              const latestText = latest
+                ? `${formatMonthDay(latest.transactionDate)}\n${currency(latest.amount)} ${latest.type === 'deposit' ? '선결제' : latest.type === 'usage' ? '사용' : '잔액 조정'}`
+                : '거래내역 없음';
+              void navigator.clipboard.writeText(`이배산 숯불구이\n\n${selected.name} 고객님\n\n현재 선결제 잔액\n${currency(selected.balance)}\n\n최근 거래\n${latestText}`);
+              showToast('잔액 안내가 복사되었습니다.');
+            }}>잔액 안내 복사</Button>
+          </div>
+        </Modal>
+      )}
+
+      <Modal open={legacyOpen} onClose={() => setLegacyOpen(false)} title="기존 메모 원문">
+        <pre className="mb-5 whitespace-pre-wrap rounded-2xl bg-brand-beige-light p-4 text-sm leading-6 text-ink">{selected?.legacyNote}</pre>
+      </Modal>
+
+      <Modal open={duplicateCustomers.length > 0} onClose={() => setDuplicateCustomers([])} title="기존 고객이 있습니다">
+        <div className="space-y-3 pb-5">
+          {duplicateCustomers.map((customer) => (
+            <button key={customer.id} onClick={() => {
+              setDuplicateCustomers([]);
+              setCustomerModal(undefined);
+              void openDetail(customer);
+            }} className="w-full rounded-2xl bg-brand-beige-light p-4 text-left">
+              <p className="font-bold text-ink">{customer.name}</p>
+              <p className="mt-1 text-sm text-ink-soft">{customer.companyName || '회사명 없음'} · {customer.phone}</p>
+              <p className="mt-2 text-sm font-bold text-emerald-600">기존 고객 보기</p>
+            </button>
+          ))}
+          <Button fullWidth variant="secondary" onClick={() => {
+            setDuplicateCustomers([]);
+            void saveCustomer(true);
+          }}>그래도 등록</Button>
         </div>
       </Modal>
 

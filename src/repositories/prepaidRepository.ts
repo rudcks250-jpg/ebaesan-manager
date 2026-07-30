@@ -1,10 +1,10 @@
 import { supabase } from '@/lib/supabaseClient';
-import type { PrepaidCustomer, PrepaidTransaction, PrepaidTransactionType } from '@/data/types';
+import type { PrepaidAdjustmentDirection, PrepaidCustomer, PrepaidTransaction, PrepaidTransactionType } from '@/data/types';
 
 type Row = Record<string, unknown>;
 
 function signedAmount(row: Row): number {
-  return row.transaction_type === 'deposit' ? Number(row.amount) : -Number(row.amount);
+  return Number(row.effect_amount);
 }
 
 function mapTransaction(row: Row, balanceAfter = 0): PrepaidTransaction {
@@ -13,6 +13,10 @@ function mapTransaction(row: Row, balanceAfter = 0): PrepaidTransaction {
     customerId: String(row.customer_id),
     type: row.transaction_type as PrepaidTransactionType,
     amount: Number(row.amount),
+    effectAmount: Number(row.effect_amount),
+    adjustmentDirection: row.transaction_type === 'adjustment'
+      ? (Number(row.effect_amount) >= 0 ? 'increase' : 'decrease')
+      : undefined,
     transactionDate: String(row.transaction_date),
     memo: row.memo ? String(row.memo) : undefined,
     createdBy: String(row.created_by),
@@ -20,6 +24,7 @@ function mapTransaction(row: Row, balanceAfter = 0): PrepaidTransaction {
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
     balanceAfter,
+    needsReview: Boolean(row.needs_review),
   };
 }
 
@@ -36,6 +41,8 @@ function mapCustomer(row: Row, transactions: Row[]): PrepaidCustomer {
     contactPerson: row.contact_person ? String(row.contact_person) : undefined,
     phone: String(row.phone ?? ''),
     memo: row.memo ? String(row.memo) : undefined,
+    legacyNote: row.legacy_note ? String(row.legacy_note) : undefined,
+    needsReview: Boolean(row.needs_review),
     balance,
     lastTransactionAt: latest ? String(latest.transaction_date) : undefined,
     createdBy: String(row.created_by),
@@ -67,8 +74,8 @@ export const prepaidRepository = {
     memo?: string;
     employeeId: string;
     employeeName: string;
-  }): Promise<void> {
-    const { error } = await supabase.from('prepaid_customers').insert({
+  }): Promise<PrepaidCustomer> {
+    const { data, error } = await supabase.from('prepaid_customers').insert({
       name: input.name.trim(),
       company_name: input.companyName?.trim() || null,
       contact_person: input.contactPerson?.trim() || null,
@@ -76,8 +83,9 @@ export const prepaidRepository = {
       memo: input.memo?.trim() || null,
       created_by: input.employeeId,
       created_by_name: input.employeeName,
-    });
+    }).select().single();
     if (error) throw error;
+    return mapCustomer(data, []);
   },
 
   async updateCustomer(customerId: string, input: {
@@ -126,6 +134,7 @@ export const prepaidRepository = {
     transactionDate: string;
     memo?: string;
     transactionId?: string;
+    adjustmentDirection?: PrepaidAdjustmentDirection;
   }): Promise<void> {
     const { error } = await supabase.rpc('save_prepaid_transaction', {
       p_customer_id: input.customerId,
@@ -134,6 +143,7 @@ export const prepaidRepository = {
       p_transaction_date: input.transactionDate,
       p_memo: input.memo?.trim() || null,
       p_transaction_id: input.transactionId ?? null,
+      p_adjustment_direction: input.adjustmentDirection ?? null,
     });
     if (error) throw error;
   },
