@@ -9,11 +9,12 @@ import { useAuth } from '@/contexts/AuthContext';
 // 첫 로그인 시 어느 화면에 있든(라우트 이동과 무관하게) 표시되는
 // 전역 비밀번호 변경 모달입니다. App.tsx 최상위에서 렌더링합니다.
 export function PasswordChangeModal() {
-  const { session, completePasswordChange } = useAuth();
+  const { session, completePasswordChange, logout } = useAuth();
   const { showToast } = useToast();
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
+  const [closing, setClosing] = useState(false);
 
   if (!session) return null;
 
@@ -35,8 +36,19 @@ export function PasswordChangeModal() {
     }
   };
 
+  const handleClose = async () => {
+    if (closing) return;
+    setClosing(true);
+    try {
+      await logout();
+    } catch {
+      setError('로그인 화면으로 돌아가지 못했습니다. 다시 시도해주세요.');
+      setClosing(false);
+    }
+  };
+
   return (
-    <Modal open title="비밀번호 변경" onClose={() => {}}>
+    <Modal open title="비밀번호 변경" onClose={() => void handleClose()}>
       <p className="text-sm text-ink-soft pb-4">
         첫 로그인입니다. 안전한 사용을 위해 비밀번호를 변경해주세요.
       </p>
@@ -56,7 +68,7 @@ export function PasswordChangeModal() {
         placeholder="다시 한번 입력"
       />
       <div className="pb-5">
-        <Button fullWidth onClick={handleSubmit}>
+        <Button fullWidth onClick={handleSubmit} disabled={closing}>
           변경하고 시작하기
         </Button>
       </div>
