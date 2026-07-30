@@ -183,8 +183,6 @@ function AdminDashboard() {
         </div>
       </Card>
 
-      {/* ⑥ 공지사항 */}
-      <NoticeCard />
     </div>
   );
 }
@@ -213,6 +211,9 @@ function StaffDashboard({ employeeId }: { employeeId: string }) {
 
   return (
     <div className="space-y-4">
+      {/* 앱을 열면 가장 먼저 확인하는 공지사항 */}
+      <NoticeCard />
+
       {/* ① 오늘 근무 */}
       <Card>
         <p className="text-sm text-ink-soft mb-1">오늘 근무</p>
@@ -285,9 +286,6 @@ function StaffDashboard({ employeeId }: { employeeId: string }) {
           <p className="text-sm text-ink-faint">신청한 휴무가 없습니다.</p>
         )}
       </Card>
-
-      {/* ④ 공지사항 */}
-      <NoticeCard />
 
       {/* ⑤⑥ 바로가기 */}
       <div className="grid grid-cols-2 gap-3">

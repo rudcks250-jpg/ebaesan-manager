@@ -12,9 +12,10 @@ import {
   UserCircle2,
   MoreHorizontal,
   ClipboardList,
+  Megaphone,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { canAccess, canAccessTomorrowPrep, type FeatureKey } from '@/utils/permission';
+import { canAccess, canAccessTomorrowPrep, canManageNotices, type FeatureKey } from '@/utils/permission';
 
 interface NavItem {
   to: string;
@@ -48,6 +49,13 @@ const TOMORROW_PREP_TAB: NavItem = {
   feature: 'tomorrowPrep',
 };
 
+const NOTICES_TAB: NavItem = {
+  to: '/notices',
+  label: '공지사항',
+  icon: Megaphone,
+  feature: 'notices',
+};
+
 const GRID_COLS: Record<number, string> = {
   2: 'grid-cols-2',
   3: 'grid-cols-3',
@@ -55,6 +63,7 @@ const GRID_COLS: Record<number, string> = {
   5: 'grid-cols-5',
   6: 'grid-cols-6',
   7: 'grid-cols-7',
+  8: 'grid-cols-8',
 };
 
 export function BottomNav() {
@@ -64,6 +73,7 @@ export function BottomNav() {
 
   const isRealAdmin = session?.role === 'admin';
   const hasTomorrowPrepAccess = canAccessTomorrowPrep(session?.name);
+  const hasNoticeManagementAccess = canManageNotices(session?.name);
 
   // 직원 계열 화면: 매니저에게만 발주관리 탭을 추가합니다.
   if (effectiveRole === 'employee' || effectiveRole === 'manager') {
@@ -71,9 +81,12 @@ export function BottomNav() {
       effectiveRole === 'manager'
         ? [...EMPLOYEE_TABS.slice(0, 3), ADMIN_PRIMARY[3], ...EMPLOYEE_TABS.slice(3)]
         : EMPLOYEE_TABS;
-    const workerTabs = hasTomorrowPrepAccess
+    let workerTabs = hasTomorrowPrepAccess
       ? [...roleTabs.slice(0, -1), TOMORROW_PREP_TAB, roleTabs.at(-1)!]
       : roleTabs;
+    if (hasNoticeManagementAccess) {
+      workerTabs = [...workerTabs.slice(0, -1), NOTICES_TAB, workerTabs.at(-1)!];
+    }
     const totalWorkerCols = workerTabs.length + 1;
     return (
       <nav className="sm:hidden fixed bottom-3 left-3 right-3 z-40 bg-surface/88 backdrop-blur-2xl border border-white/80 rounded-[22px] shadow-premium-lg pb-[env(safe-area-inset-bottom)] overflow-hidden">
@@ -153,6 +166,19 @@ export function BottomNav() {
                 >
                   <ClipboardList size={21} className="text-ink" strokeWidth={2} />
                   <span className="text-xs font-semibold text-ink">내일 준비</span>
+                </button>
+              )}
+
+              {hasNoticeManagementAccess && (
+                <button
+                  onClick={() => {
+                    setMoreOpen(false);
+                    navigate('/notices');
+                  }}
+                  className="flex flex-col items-center gap-1.5 py-4 rounded-2xl hover:bg-brand-beige-light press-scale"
+                >
+                  <Megaphone size={21} className="text-ink" strokeWidth={2} />
+                  <span className="text-xs font-semibold text-ink">공지사항</span>
                 </button>
               )}
 

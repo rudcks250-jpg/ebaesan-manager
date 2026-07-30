@@ -2,7 +2,7 @@ import { storage, STORAGE_KEYS } from '@/data/storage';
 import { orderRepository } from '@/repositories/orderRepository';
 import { vendorRepository } from '@/repositories/vendorRepository';
 import { noticeRepository } from '@/repositories/noticeRepository';
-import { jiwooFoodItems, seedOrderItems, seedVendors, seedNotices } from '@/data/mockData';
+import { jiwooFoodItems, seedOrderItems, seedVendors } from '@/data/mockData';
 import type { Vendor, VendorItem } from '@/data/types';
 
 const BEVERAGE_ITEMS: VendorItem[] = [
@@ -157,7 +157,7 @@ export function seedDevDataIfNeeded(): void {
 
   orderRepository.seedIfEmpty(seedOrderItems);
   vendorRepository.seedIfEmpty(seedVendors);
-  noticeRepository.seedIfEmpty(seedNotices);
+  noticeRepository.seedIfEmpty();
   syncJiwooFoodCatalog();
   syncVendorCatalogs();
 

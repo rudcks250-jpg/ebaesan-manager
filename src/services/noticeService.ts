@@ -1,16 +1,32 @@
 import { noticeRepository } from '@/repositories/noticeRepository';
-import { notificationService } from '@/services/notificationService';
 
 export const noticeService = {
-  async list() {
-    return noticeRepository.findAll();
+  list(employeeId: string) {
+    return noticeRepository.findAll(employeeId);
   },
-  async create(title: string, content: string) {
-    const notice = await noticeRepository.create(title, content);
-    await notificationService.dispatch();
-    return notice;
+  create(input: {
+    title: string;
+    content: string;
+    isImportant: boolean;
+    employeeId: string;
+    employeeName: string;
+  }) {
+    return noticeRepository.create(input);
   },
-  async migrateLocal(createdBy: string) {
-    return noticeRepository.migrateLocal(createdBy);
+  update(id: string, input: { title: string; content: string; isImportant: boolean }) {
+    return noticeRepository.update(id, input);
+  },
+  delete(id: string) {
+    return noticeRepository.delete(id);
+  },
+  markRead(noticeId: string, employeeId: string) {
+    return noticeRepository.markRead(noticeId, employeeId);
+  },
+  getReadStatus(noticeId: string) {
+    return noticeRepository.getReadStatus(noticeId);
+  },
+  async migrateLocal(_createdBy: string) {
+    noticeRepository.migrateLocal();
+    return 0;
   },
 };

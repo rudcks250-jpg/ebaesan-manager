@@ -12,6 +12,8 @@ import { WorkTimePage } from '@/features/worktime/WorkTimePage';
 import { OrderPage } from '@/features/order/OrderPage';
 import { TomorrowPrepPage } from '@/features/tomorrowPrep/TomorrowPrepPage';
 import { canAccessTomorrowPrep } from '@/utils/permission';
+import { canManageNotices } from '@/utils/permission';
+import { NoticeManagementPage } from '@/features/notices/NoticeManagementPage';
 
 function TomorrowPrepRoute() {
   const { session } = useAuth();
@@ -19,6 +21,14 @@ function TomorrowPrepRoute() {
     return <Navigate to="/dashboard" replace />;
   }
   return <TomorrowPrepPage />;
+}
+
+function NoticeManagementRoute() {
+  const { session } = useAuth();
+  if (!canManageNotices(session?.name)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return <NoticeManagementPage />;
 }
 
 function LoginRoute() {
@@ -102,6 +112,14 @@ export function AppRouter() {
           element={
             <RequireAuth feature="tomorrowPrep">
               <TomorrowPrepRoute />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/notices"
+          element={
+            <RequireAuth feature="notices">
+              <NoticeManagementRoute />
             </RequireAuth>
           }
         />

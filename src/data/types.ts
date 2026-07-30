@@ -175,8 +175,18 @@ export interface Notice {
   id: string;
   title: string;
   content: string;
+  isImportant: boolean;
   createdAt: string;
   createdBy: string;
+  createdByName: string;
+  updatedAt: string;
+  readAt?: string;
+}
+
+export interface NoticeReadStatus {
+  employeeId: string;
+  employeeName: string;
+  readAt?: string;
 }
 
 // ---------------------------------------------------------

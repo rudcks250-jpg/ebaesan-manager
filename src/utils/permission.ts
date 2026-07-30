@@ -9,6 +9,7 @@ export type FeatureKey =
   | 'worktime'
   | 'order'
   | 'tomorrowPrep'
+  | 'notices'
   | 'settings'
   | 'notifications';
 
@@ -22,6 +23,7 @@ const FEATURE_ACCESS: Record<FeatureKey, UserRole[]> = {
   worktime: ['admin', 'manager', 'employee'],
   order: ['admin', 'manager'],
   tomorrowPrep: ['admin', 'manager', 'employee'],
+  notices: ['admin', 'manager', 'employee'],
   settings: ['admin', 'manager', 'employee'],
   notifications: ['admin'],
 };
@@ -39,4 +41,10 @@ const TOMORROW_PREP_USERS = new Set(['박경찬', '김경재', '김하은']);
 
 export function canAccessTomorrowPrep(name: string | undefined): boolean {
   return !!name && TOMORROW_PREP_USERS.has(name.trim());
+}
+
+const NOTICE_MANAGERS = new Set(['박경찬', '김경재', '김하은']);
+
+export function canManageNotices(name: string | undefined): boolean {
+  return !!name && NOTICE_MANAGERS.has(name.trim());
 }

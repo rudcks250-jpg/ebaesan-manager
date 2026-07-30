@@ -387,8 +387,11 @@ export const seedNotices: Notice[] = [
     id: 'notice_1',
     title: '이번 주 회식 안내',
     content: '금요일 영업 종료 후 직원 회식이 있습니다. 참석 여부를 알려주세요.',
+    isImportant: false,
     createdAt: now,
     createdBy: 'emp_admin',
+    createdByName: 'admin',
+    updatedAt: now,
   },
 ];
 

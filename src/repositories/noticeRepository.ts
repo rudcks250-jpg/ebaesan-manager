@@ -1,51 +1,118 @@
 import { supabase } from '@/lib/supabaseClient';
 import { storage, STORAGE_KEYS } from '@/data/storage';
-import type { Notice } from '@/data/types';
+import type { Notice, NoticeReadStatus } from '@/data/types';
 
-function localNotices(): Notice[] {
-  return storage.get<Notice[]>(STORAGE_KEYS.notices) ?? [];
-}
-
-function rowToNotice(row: Record<string, string>): Notice {
+function rowToNotice(row: Record<string, unknown>, readAt?: string): Notice {
   return {
-    id: row.id,
-    title: row.title,
-    content: row.content,
-    createdAt: row.created_at,
-    createdBy: row.created_by,
+    id: String(row.id),
+    title: String(row.title),
+    content: String(row.content),
+    isImportant: Boolean(row.is_important),
+    createdAt: String(row.created_at),
+    createdBy: String(row.created_by),
+    createdByName: String(row.created_by_name),
+    updatedAt: String(row.updated_at),
+    readAt,
   };
 }
 
 export const noticeRepository = {
-  async findAll(): Promise<Notice[]> {
-    const { data, error } = await supabase
-      .from('notices')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (error) {
-      return localNotices().sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-    }
-    return (data ?? []).map(rowToNotice);
+  async findAll(employeeId: string): Promise<Notice[]> {
+    const [noticeResult, readResult] = await Promise.all([
+      supabase
+        .from('notices')
+        .select('*')
+        .order('is_important', { ascending: false })
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('notice_reads')
+        .select('notice_id,read_at')
+        .eq('employee_id', employeeId),
+    ]);
+    if (noticeResult.error) throw noticeResult.error;
+    if (readResult.error) throw readResult.error;
+    const readAtByNoticeId = new Map(
+      (readResult.data ?? []).map((row) => [row.notice_id, row.read_at]),
+    );
+    return (noticeResult.data ?? []).map((row) =>
+      rowToNotice(row, readAtByNoticeId.get(row.id)),
+    );
   },
 
-  async create(title: string, content: string): Promise<Notice> {
-    const { data, error } = await supabase.rpc('create_notice_with_notification', {
-      p_title: title,
-      p_content: content,
-    });
+  async create(input: {
+    title: string;
+    content: string;
+    isImportant: boolean;
+    employeeId: string;
+    employeeName: string;
+  }): Promise<Notice> {
+    const { data, error } = await supabase
+      .from('notices')
+      .insert({
+        title: input.title,
+        content: input.content,
+        is_important: input.isImportant,
+        created_by: input.employeeId,
+        created_by_name: input.employeeName,
+      })
+      .select()
+      .single();
     if (error) throw error;
     return rowToNotice(data);
   },
 
-  async migrateLocal(createdBy: string): Promise<number> {
-    void createdBy;
-    // 공지사항은 Supabase가 유일한 저장소입니다. 과거 로컬 공지가 삭제 후
-    // 다시 업로드되지 않도록 기존 브라우저 데이터도 제거합니다.
-    storage.remove(STORAGE_KEYS.notices);
-    return 0;
+  async update(
+    id: string,
+    input: { title: string; content: string; isImportant: boolean },
+  ): Promise<Notice> {
+    const { data, error } = await supabase
+      .from('notices')
+      .update({
+        title: input.title,
+        content: input.content,
+        is_important: input.isImportant,
+      })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return rowToNotice(data);
   },
 
-  seedIfEmpty(seed: Notice[]): void {
-    if (localNotices().length === 0) storage.set(STORAGE_KEYS.notices, seed);
+  async delete(id: string): Promise<void> {
+    const { error } = await supabase.from('notices').delete().eq('id', id);
+    if (error) throw error;
+  },
+
+  async markRead(noticeId: string, employeeId: string): Promise<string> {
+    const readAt = new Date().toISOString();
+    const { error } = await supabase
+      .from('notice_reads')
+      .upsert(
+        { notice_id: noticeId, employee_id: employeeId, read_at: readAt },
+        { onConflict: 'notice_id,employee_id' },
+      );
+    if (error) throw error;
+    return readAt;
+  },
+
+  async getReadStatus(noticeId: string): Promise<NoticeReadStatus[]> {
+    const { data, error } = await supabase.rpc('get_notice_read_status', {
+      p_notice_id: noticeId,
+    });
+    if (error) throw error;
+    return (data ?? []).map((row: Record<string, unknown>) => ({
+      employeeId: String(row.employee_id),
+      employeeName: String(row.employee_name),
+      readAt: row.read_at ? String(row.read_at) : undefined,
+    }));
+  },
+
+  migrateLocal(): void {
+    storage.remove(STORAGE_KEYS.notices);
+  },
+
+  seedIfEmpty(): void {
+    // 공지사항은 Supabase만 사용합니다.
   },
 };

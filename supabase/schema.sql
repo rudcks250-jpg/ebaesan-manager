@@ -147,6 +147,29 @@ create table if not exists public.opening_preparations (
 create index if not exists idx_opening_preparations_target_date
   on public.opening_preparations(target_date desc);
 
+create table if not exists public.notices (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  content text not null,
+  is_important boolean not null default false,
+  created_by uuid not null references public.employees(id) on delete restrict,
+  created_by_name text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.notice_reads (
+  notice_id uuid not null references public.notices(id) on delete cascade,
+  employee_id uuid not null references public.employees(id) on delete cascade,
+  read_at timestamptz not null default now(),
+  primary key (notice_id, employee_id)
+);
+
+create index if not exists idx_notices_priority_latest
+  on public.notices(is_important desc, created_at desc);
+create index if not exists idx_notice_reads_employee
+  on public.notice_reads(employee_id, read_at desc);
+
 -- ---------------------------------------------------------
 -- updated_at 자동 갱신 트리거
 -- ---------------------------------------------------------
@@ -172,6 +195,10 @@ create trigger trg_attendance_updated_at before update on public.attendance
 
 drop trigger if exists trg_opening_preparations_updated_at on public.opening_preparations;
 create trigger trg_opening_preparations_updated_at before update on public.opening_preparations
+  for each row execute function public.set_updated_at();
+
+drop trigger if exists trg_notices_updated_at on public.notices;
+create trigger trg_notices_updated_at before update on public.notices
   for each row execute function public.set_updated_at();
 
 -- ---------------------------------------------------------
@@ -228,6 +255,44 @@ as $$
       and e.status = 'active'
       and e.role in ('admin', 'manager')
   );
+$$;
+
+create or replace function public.can_manage_notices()
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.employees e
+    where e.auth_user_id = auth.uid()
+      and e.status = 'active'
+      and e.name in ('박경찬', '김경재', '김하은')
+  );
+$$;
+
+create or replace function public.get_notice_read_status(p_notice_id uuid)
+returns table(employee_id uuid, employee_name text, read_at timestamptz)
+language plpgsql
+security definer
+stable
+set search_path = public
+as $$
+begin
+  if not public.can_manage_notices() then
+    raise exception '공지사항 관리 권한이 없습니다.';
+  end if;
+
+  return query
+  select e.id, e.name, nr.read_at
+  from public.employees e
+  left join public.notice_reads nr
+    on nr.employee_id = e.id and nr.notice_id = p_notice_id
+  where e.status = 'active' and e.role <> 'admin'
+  order by (nr.read_at is null), e.name;
+end;
 $$;
 
 -- 비밀번호 변경을 마친 본인만 최초 로그인 플래그를 해제할 수 있습니다.
@@ -318,6 +383,10 @@ revoke all on function public.can_manage_opening_preparations() from public, ano
 grant execute on function public.can_manage_opening_preparations() to authenticated;
 revoke all on function public.can_manage_orders() from public, anon;
 grant execute on function public.can_manage_orders() to authenticated;
+revoke all on function public.can_manage_notices() from public, anon;
+grant execute on function public.can_manage_notices() to authenticated;
+revoke all on function public.get_notice_read_status(uuid) from public, anon;
+grant execute on function public.get_notice_read_status(uuid) to authenticated;
 revoke all on function public.complete_first_login(uuid) from public, anon;
 grant execute on function public.complete_first_login(uuid) to authenticated;
 revoke all on function public.list_schedule_employees() from public, anon;
@@ -335,6 +404,8 @@ alter table public.leave_requests enable row level security;
 alter table public.payrolls enable row level security;
 alter table public.order_completions enable row level security;
 alter table public.opening_preparations enable row level security;
+alter table public.notices enable row level security;
+alter table public.notice_reads enable row level security;
 
 -- ---------------------------------------------------------
 -- employees 정책: 관리자는 전체, 직원은 본인 행만 조회 가능
@@ -435,6 +506,39 @@ create policy opening_preparations_allowed_all on public.opening_preparations
     public.can_manage_opening_preparations()
     and updated_by = public.current_employee_id()
   );
+
+drop policy if exists notices_authenticated_select on public.notices;
+create policy notices_authenticated_select on public.notices
+  for select using (public.current_employee_id() is not null);
+
+drop policy if exists notices_managers_insert on public.notices;
+create policy notices_managers_insert on public.notices
+  for insert with check (
+    public.can_manage_notices()
+    and created_by = public.current_employee_id()
+  );
+
+drop policy if exists notices_managers_update on public.notices;
+create policy notices_managers_update on public.notices
+  for update using (public.can_manage_notices())
+  with check (public.can_manage_notices());
+
+drop policy if exists notices_managers_delete on public.notices;
+create policy notices_managers_delete on public.notices
+  for delete using (public.can_manage_notices());
+
+drop policy if exists notice_reads_self_select on public.notice_reads;
+create policy notice_reads_self_select on public.notice_reads
+  for select using (employee_id = public.current_employee_id());
+
+drop policy if exists notice_reads_self_insert on public.notice_reads;
+create policy notice_reads_self_insert on public.notice_reads
+  for insert with check (employee_id = public.current_employee_id());
+
+drop policy if exists notice_reads_self_update on public.notice_reads;
+create policy notice_reads_self_update on public.notice_reads
+  for update using (employee_id = public.current_employee_id())
+  with check (employee_id = public.current_employee_id());
 
 -- =========================================================
 -- 초기 관리자 계정 생성 안내 (SQL만으로는 auth.users를 만들 수 없습니다)

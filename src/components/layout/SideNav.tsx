@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, CalendarDays, Coffee, Package, Users, Wallet, Clock, LogOut, UserCircle2, Flame, ClipboardList } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, Coffee, Package, Users, Wallet, Clock, LogOut, UserCircle2, Flame, ClipboardList, Megaphone } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { canAccess, canAccessTomorrowPrep, type FeatureKey } from '@/utils/permission';
+import { canAccess, canAccessTomorrowPrep, canManageNotices, type FeatureKey } from '@/utils/permission';
 
 interface NavItem {
   to: string;
@@ -17,6 +17,7 @@ const ALL_ITEMS: NavItem[] = [
   { to: '/leave', label: '휴무신청', icon: Coffee, feature: 'leave' },
   { to: '/order', label: '발주관리', icon: Package, feature: 'order' },
   { to: '/tomorrow-prep', label: '내일 해야 할 것', icon: ClipboardList, feature: 'tomorrowPrep' },
+  { to: '/notices', label: '공지사항', icon: Megaphone, feature: 'notices' },
   { to: '/employee', label: '직원관리', icon: Users, feature: 'employee' },
   { to: '/payroll', label: '급여관리', icon: Wallet, feature: 'payroll' },
   { to: '/worktime', label: '근로시간', icon: Clock, feature: 'worktime' },
@@ -27,11 +28,12 @@ export function SideNav() {
   const items = ALL_ITEMS.filter(
     (item) =>
       canAccess(effectiveRole, item.feature) &&
-      (item.feature !== 'tomorrowPrep' || canAccessTomorrowPrep(session?.name)),
+      (item.feature !== 'tomorrowPrep' || canAccessTomorrowPrep(session?.name)) &&
+      (item.feature !== 'notices' || canManageNotices(session?.name)),
   );
   const isRealAdmin = session?.role === 'admin';
   const operationItems = items.filter((item) =>
-    ['/dashboard', '/schedule', '/leave', '/order', '/tomorrow-prep'].includes(item.to)
+    ['/dashboard', '/schedule', '/leave', '/order', '/tomorrow-prep', '/notices'].includes(item.to)
   );
   const managementItems = items.filter((item) => !operationItems.includes(item));
   const renderItems = (group: NavItem[]) => group.map((item) => {
