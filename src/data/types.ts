@@ -190,6 +190,34 @@ export interface NoticeReadStatus {
 }
 
 // ---------------------------------------------------------
+// 회사 선결제 관리
+// ---------------------------------------------------------
+export interface PrepaidAccount {
+  id: string;
+  companyName: string;
+  contactPerson: string;
+  phone?: string;
+  initialAmount: number;
+  balance: number;
+  memo?: string;
+  createdBy: string;
+  createdByName: string;
+  createdAt: string;
+  updatedAt: string;
+  lastUsedAt?: string;
+}
+
+export interface PrepaidUsage {
+  id: string;
+  accountId: string;
+  amount: number;
+  memo?: string;
+  usedBy: string;
+  usedByName: string;
+  usedAt: string;
+}
+
+// ---------------------------------------------------------
 // 인증 세션
 // ---------------------------------------------------------
 export interface AuthSession {

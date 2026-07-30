@@ -10,6 +10,7 @@ export type FeatureKey =
   | 'order'
   | 'tomorrowPrep'
   | 'notices'
+  | 'prepayments'
   | 'settings'
   | 'notifications';
 
@@ -24,6 +25,7 @@ const FEATURE_ACCESS: Record<FeatureKey, UserRole[]> = {
   order: ['admin', 'manager'],
   tomorrowPrep: ['admin', 'manager', 'employee'],
   notices: ['admin', 'manager', 'employee'],
+  prepayments: ['admin', 'manager', 'employee'],
   settings: ['admin', 'manager', 'employee'],
   notifications: ['admin'],
 };
@@ -47,4 +49,10 @@ const NOTICE_MANAGERS = new Set(['박경찬', '김경재', '김하은']);
 
 export function canManageNotices(name: string | undefined): boolean {
   return !!name && NOTICE_MANAGERS.has(name.trim());
+}
+
+const PREPAYMENT_MANAGERS = new Set(['박경찬', '김경재', '김하은']);
+
+export function canManagePrepayments(name: string | undefined): boolean {
+  return !!name && PREPAYMENT_MANAGERS.has(name.trim());
 }

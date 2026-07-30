@@ -13,9 +13,10 @@ import {
   MoreHorizontal,
   ClipboardList,
   Megaphone,
+  CreditCard,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { canAccess, canAccessTomorrowPrep, canManageNotices, type FeatureKey } from '@/utils/permission';
+import { canAccess, canAccessTomorrowPrep, canManageNotices, canManagePrepayments, type FeatureKey } from '@/utils/permission';
 
 interface NavItem {
   to: string;
@@ -56,6 +57,13 @@ const NOTICES_TAB: NavItem = {
   feature: 'notices',
 };
 
+const PREPAYMENTS_TAB: NavItem = {
+  to: '/prepayments',
+  label: '선결제',
+  icon: CreditCard,
+  feature: 'prepayments',
+};
+
 const GRID_COLS: Record<number, string> = {
   2: 'grid-cols-2',
   3: 'grid-cols-3',
@@ -64,6 +72,7 @@ const GRID_COLS: Record<number, string> = {
   6: 'grid-cols-6',
   7: 'grid-cols-7',
   8: 'grid-cols-8',
+  9: 'grid-cols-9',
 };
 
 export function BottomNav() {
@@ -74,6 +83,7 @@ export function BottomNav() {
   const isRealAdmin = session?.role === 'admin';
   const hasTomorrowPrepAccess = canAccessTomorrowPrep(session?.name);
   const hasNoticeManagementAccess = canManageNotices(session?.name);
+  const hasPrepaymentAccess = canManagePrepayments(session?.name);
 
   // 직원 계열 화면: 매니저에게만 발주관리 탭을 추가합니다.
   if (effectiveRole === 'employee' || effectiveRole === 'manager') {
@@ -86,6 +96,9 @@ export function BottomNav() {
       : roleTabs;
     if (hasNoticeManagementAccess) {
       workerTabs = [...workerTabs.slice(0, -1), NOTICES_TAB, workerTabs.at(-1)!];
+    }
+    if (hasPrepaymentAccess) {
+      workerTabs = [...workerTabs.slice(0, -1), PREPAYMENTS_TAB, workerTabs.at(-1)!];
     }
     const totalWorkerCols = workerTabs.length + 1;
     return (
@@ -179,6 +192,19 @@ export function BottomNav() {
                 >
                   <Megaphone size={21} className="text-ink" strokeWidth={2} />
                   <span className="text-xs font-semibold text-ink">공지사항</span>
+                </button>
+              )}
+
+              {hasPrepaymentAccess && (
+                <button
+                  onClick={() => {
+                    setMoreOpen(false);
+                    navigate('/prepayments');
+                  }}
+                  className="flex flex-col items-center gap-1.5 py-4 rounded-2xl hover:bg-brand-beige-light press-scale"
+                >
+                  <CreditCard size={21} className="text-ink" strokeWidth={2} />
+                  <span className="text-xs font-semibold text-ink">선결제</span>
                 </button>
               )}
 
