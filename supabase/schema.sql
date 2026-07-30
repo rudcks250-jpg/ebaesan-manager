@@ -891,9 +891,9 @@ drop policy if exists prepaid_usages_managers_select on public.prepaid_usages;
 create policy prepaid_usages_managers_select on public.prepaid_usages
   for select using (public.can_manage_prepayments());
 
-drop policy if exists prepaid_customers_managers_select on public.prepaid_customers;
-create policy prepaid_customers_managers_select on public.prepaid_customers
-  for select using (public.can_manage_prepayments() and deleted_at is null);
+drop policy if exists prepaid_customers_authenticated_select on public.prepaid_customers;
+create policy prepaid_customers_authenticated_select on public.prepaid_customers
+  for select using (public.current_employee_id() is not null and deleted_at is null);
 
 drop policy if exists prepaid_customers_managers_insert on public.prepaid_customers;
 create policy prepaid_customers_managers_insert on public.prepaid_customers
@@ -910,9 +910,9 @@ drop policy if exists prepaid_customers_managers_delete on public.prepaid_custom
 create policy prepaid_customers_managers_delete on public.prepaid_customers
   for delete using (public.can_manage_prepayments());
 
-drop policy if exists prepaid_transactions_managers_select on public.prepaid_transactions;
-create policy prepaid_transactions_managers_select on public.prepaid_transactions
-  for select using (public.can_manage_prepayments() and deleted_at is null);
+drop policy if exists prepaid_transactions_authenticated_select on public.prepaid_transactions;
+create policy prepaid_transactions_authenticated_select on public.prepaid_transactions
+  for select using (public.current_employee_id() is not null and deleted_at is null);
 
 drop policy if exists prepaid_audit_logs_managers_select on public.prepaid_audit_logs;
 create policy prepaid_audit_logs_managers_select on public.prepaid_audit_logs

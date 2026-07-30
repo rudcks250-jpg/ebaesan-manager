@@ -11,7 +11,7 @@ import { LeavePage } from '@/features/leave/LeavePage';
 import { WorkTimePage } from '@/features/worktime/WorkTimePage';
 import { OrderPage } from '@/features/order/OrderPage';
 import { TomorrowPrepPage } from '@/features/tomorrowPrep/TomorrowPrepPage';
-import { canAccessTomorrowPrep, canManageNotices, canManagePrepayments } from '@/utils/permission';
+import { canAccessTomorrowPrep, canManageNotices } from '@/utils/permission';
 import { NoticeManagementPage } from '@/features/notices/NoticeManagementPage';
 import { PrepaidManagementPage } from '@/features/prepaid/PrepaidManagementPage';
 
@@ -29,14 +29,6 @@ function NoticeManagementRoute() {
     return <Navigate to="/dashboard" replace />;
   }
   return <NoticeManagementPage />;
-}
-
-function PrepaidManagementRoute() {
-  const { session } = useAuth();
-  if (!canManagePrepayments(session?.name)) {
-    return <Navigate to="/dashboard" replace />;
-  }
-  return <PrepaidManagementPage />;
 }
 
 function LoginRoute() {
@@ -135,7 +127,7 @@ export function AppRouter() {
           path="/prepayments"
           element={
             <RequireAuth feature="prepayments">
-              <PrepaidManagementRoute />
+              <PrepaidManagementPage />
             </RequireAuth>
           }
         />

@@ -8,8 +8,10 @@ import { Modal } from '@/components/common/Modal';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { EmptyState } from '@/components/common/EmptyState';
 import { useToast } from '@/components/common/Toast';
+import { useAuth } from '@/contexts/AuthContext';
 import { prepaidService } from '@/services/prepaidService';
 import { formatMonthDay, todayStr } from '@/utils/date';
+import { canManagePrepayments } from '@/utils/permission';
 import type { PrepaidCustomer, PrepaidTransaction, PrepaidTransactionType } from '@/data/types';
 
 function currency(value: number): string {
@@ -34,6 +36,8 @@ function message(error: unknown, fallback: string): string {
 
 export function PrepaidManagementPage() {
   const { showToast } = useToast();
+  const { session } = useAuth();
+  const canEdit = canManagePrepayments(session?.name);
   const [customers, setCustomers] = useState<PrepaidCustomer[]>([]);
   const [selected, setSelected] = useState<PrepaidCustomer>();
   const [transactions, setTransactions] = useState<PrepaidTransaction[]>([]);
@@ -194,7 +198,7 @@ export function PrepaidManagementPage() {
               className="w-full bg-transparent text-base font-semibold text-ink outline-none placeholder:font-normal placeholder:text-ink-faint"
             />
           </label>
-          <Button size="lg" onClick={openCreate}><span className="flex items-center gap-1.5"><Plus size={18} /> 신규 선결제</span></Button>
+          {canEdit && <Button size="lg" onClick={openCreate}><span className="flex items-center gap-1.5"><Plus size={18} /> 신규 선결제</span></Button>}
         </div>
 
         {filtered.length === 0 ? (
@@ -252,10 +256,12 @@ export function PrepaidManagementPage() {
               <p className="mt-1 text-4xl font-bold tracking-[-0.05em]">{currency(selected.balance)}</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <Button fullWidth onClick={() => openNewTransaction('usage')} disabled={selected.balance <= 0}>사용하기</Button>
-              <Button fullWidth variant="secondary" onClick={() => openNewTransaction('deposit')}>추가 선결제</Button>
-            </div>
+            {canEdit && (
+              <div className="grid grid-cols-2 gap-2">
+                <Button fullWidth onClick={() => openNewTransaction('usage')} disabled={selected.balance <= 0}>사용하기</Button>
+                <Button fullWidth variant="secondary" onClick={() => openNewTransaction('deposit')}>추가 선결제</Button>
+              </div>
+            )}
             <Button fullWidth variant="ghost" onClick={() => setCustomerView(true)}>손님에게 보여주기</Button>
 
             <section>
@@ -267,7 +273,7 @@ export function PrepaidManagementPage() {
                   {transactions.map((transaction) => {
                     const deposit = transaction.effectAmount > 0;
                     return (
-                      <button key={transaction.id} onClick={() => openEdit(transaction)} className="w-full rounded-2xl bg-white p-4 text-left ring-1 ring-black/[0.05] press-scale">
+                        <button key={transaction.id} onClick={() => canEdit && openEdit(transaction)} className={`w-full rounded-2xl bg-white p-4 text-left ring-1 ring-black/[0.05] ${canEdit ? 'press-scale' : 'cursor-default'}`}>
                         <div className="flex items-start justify-between">
                           <div className="flex gap-2.5">
                             {deposit ? <ArrowUpCircle className="text-emerald-600" size={21} /> : <ArrowDownCircle className="text-red-500" size={21} />}

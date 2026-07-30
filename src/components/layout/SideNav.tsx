@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { LayoutDashboard, CalendarDays, Coffee, Package, Users, Wallet, Clock, LogOut, UserCircle2, Flame, ClipboardList, Megaphone, CreditCard } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { canAccess, canAccessTomorrowPrep, canManageNotices, canManagePrepayments, type FeatureKey } from '@/utils/permission';
+import { canAccess, canAccessTomorrowPrep, canManageNotices, type FeatureKey } from '@/utils/permission';
 
 interface NavItem {
   to: string;
@@ -30,8 +30,7 @@ export function SideNav() {
     (item) =>
       canAccess(effectiveRole, item.feature) &&
       (item.feature !== 'tomorrowPrep' || canAccessTomorrowPrep(session?.name)) &&
-      (item.feature !== 'notices' || canManageNotices(session?.name)) &&
-      (item.feature !== 'prepayments' || canManagePrepayments(session?.name)),
+      (item.feature !== 'notices' || canManageNotices(session?.name)),
   );
   const isRealAdmin = session?.role === 'admin';
   const operationItems = items.filter((item) =>

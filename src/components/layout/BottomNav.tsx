@@ -16,7 +16,7 @@ import {
   CreditCard,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { canAccess, canAccessTomorrowPrep, canManageNotices, canManagePrepayments, type FeatureKey } from '@/utils/permission';
+import { canAccess, canAccessTomorrowPrep, canManageNotices, type FeatureKey } from '@/utils/permission';
 
 interface NavItem {
   to: string;
@@ -83,7 +83,6 @@ export function BottomNav() {
   const isRealAdmin = session?.role === 'admin';
   const hasTomorrowPrepAccess = canAccessTomorrowPrep(session?.name);
   const hasNoticeManagementAccess = canManageNotices(session?.name);
-  const hasPrepaymentAccess = canManagePrepayments(session?.name);
 
   // 직원 계열 화면: 매니저에게만 발주관리 탭을 추가합니다.
   if (effectiveRole === 'employee' || effectiveRole === 'manager') {
@@ -97,9 +96,7 @@ export function BottomNav() {
     if (hasNoticeManagementAccess) {
       workerTabs = [...workerTabs.slice(0, -1), NOTICES_TAB, workerTabs.at(-1)!];
     }
-    if (hasPrepaymentAccess) {
-      workerTabs = [...workerTabs.slice(0, -1), PREPAYMENTS_TAB, workerTabs.at(-1)!];
-    }
+    workerTabs = [...workerTabs.slice(0, -1), PREPAYMENTS_TAB, workerTabs.at(-1)!];
     const totalWorkerCols = workerTabs.length + 1;
     return (
       <nav className="sm:hidden fixed bottom-3 left-3 right-3 z-40 bg-surface/88 backdrop-blur-2xl border border-white/80 rounded-[22px] shadow-premium-lg pb-[env(safe-area-inset-bottom)] overflow-hidden">
@@ -195,18 +192,16 @@ export function BottomNav() {
                 </button>
               )}
 
-              {hasPrepaymentAccess && (
-                <button
-                  onClick={() => {
-                    setMoreOpen(false);
-                    navigate('/prepayments');
-                  }}
-                  className="flex flex-col items-center gap-1.5 py-4 rounded-2xl hover:bg-brand-beige-light press-scale"
-                >
-                  <CreditCard size={21} className="text-ink" strokeWidth={2} />
-                  <span className="text-xs font-semibold text-ink">선결제</span>
-                </button>
-              )}
+              <button
+                onClick={() => {
+                  setMoreOpen(false);
+                  navigate('/prepayments');
+                }}
+                className="flex flex-col items-center gap-1.5 py-4 rounded-2xl hover:bg-brand-beige-light press-scale"
+              >
+                <CreditCard size={21} className="text-ink" strokeWidth={2} />
+                <span className="text-xs font-semibold text-ink">선결제</span>
+              </button>
 
               <button
                 onClick={() => {
