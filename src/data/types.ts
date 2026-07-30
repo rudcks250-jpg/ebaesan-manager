@@ -190,31 +190,37 @@ export interface NoticeReadStatus {
 }
 
 // ---------------------------------------------------------
-// 회사 선결제 관리
+// 고객 선결제 거래 원장
 // ---------------------------------------------------------
-export interface PrepaidAccount {
+export interface PrepaidCustomer {
   id: string;
-  companyName: string;
-  contactPerson: string;
-  phone?: string;
-  initialAmount: number;
+  name: string;
+  companyName?: string;
+  contactPerson?: string;
+  phone: string;
+  memo?: string;
   balance: number;
+  lastTransactionAt?: string;
+  createdBy: string;
+  createdByName: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type PrepaidTransactionType = 'deposit' | 'usage';
+
+export interface PrepaidTransaction {
+  id: string;
+  customerId: string;
+  type: PrepaidTransactionType;
+  amount: number;
+  transactionDate: string;
   memo?: string;
   createdBy: string;
   createdByName: string;
   createdAt: string;
   updatedAt: string;
-  lastUsedAt?: string;
-}
-
-export interface PrepaidUsage {
-  id: string;
-  accountId: string;
-  amount: number;
-  memo?: string;
-  usedBy: string;
-  usedByName: string;
-  usedAt: string;
+  balanceAfter: number;
 }
 
 // ---------------------------------------------------------

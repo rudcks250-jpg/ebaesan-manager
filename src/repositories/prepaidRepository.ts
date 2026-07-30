@@ -1,113 +1,147 @@
 import { supabase } from '@/lib/supabaseClient';
-import type { PrepaidAccount, PrepaidUsage } from '@/data/types';
+import type { PrepaidCustomer, PrepaidTransaction, PrepaidTransactionType } from '@/data/types';
 
-function mapAccount(row: Record<string, unknown>, lastUsedAt?: string): PrepaidAccount {
+type Row = Record<string, unknown>;
+
+function signedAmount(row: Row): number {
+  return row.transaction_type === 'deposit' ? Number(row.amount) : -Number(row.amount);
+}
+
+function mapTransaction(row: Row, balanceAfter = 0): PrepaidTransaction {
   return {
     id: String(row.id),
-    companyName: String(row.company_name),
-    contactPerson: String(row.contact_person),
-    phone: row.phone ? String(row.phone) : undefined,
-    initialAmount: Number(row.initial_amount),
-    balance: Number(row.balance),
+    customerId: String(row.customer_id),
+    type: row.transaction_type as PrepaidTransactionType,
+    amount: Number(row.amount),
+    transactionDate: String(row.transaction_date),
     memo: row.memo ? String(row.memo) : undefined,
     createdBy: String(row.created_by),
     createdByName: String(row.created_by_name),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
-    lastUsedAt,
+    balanceAfter,
   };
 }
 
-function mapUsage(row: Record<string, unknown>): PrepaidUsage {
+function mapCustomer(row: Row, transactions: Row[]): PrepaidCustomer {
+  const balance = transactions.reduce((sum, transaction) => sum + signedAmount(transaction), 0);
+  const latest = [...transactions].sort((a, b) => {
+    const date = String(b.transaction_date).localeCompare(String(a.transaction_date));
+    return date || String(b.created_at).localeCompare(String(a.created_at));
+  })[0];
   return {
     id: String(row.id),
-    accountId: String(row.account_id),
-    amount: Number(row.amount),
+    name: String(row.name),
+    companyName: row.company_name ? String(row.company_name) : undefined,
+    contactPerson: row.contact_person ? String(row.contact_person) : undefined,
+    phone: String(row.phone ?? ''),
     memo: row.memo ? String(row.memo) : undefined,
-    usedBy: String(row.used_by),
-    usedByName: String(row.used_by_name),
-    usedAt: String(row.used_at),
+    balance,
+    lastTransactionAt: latest ? String(latest.transaction_date) : undefined,
+    createdBy: String(row.created_by),
+    createdByName: String(row.created_by_name),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
   };
 }
 
 export const prepaidRepository = {
-  async findAll(): Promise<PrepaidAccount[]> {
-    const [accountResult, usageResult] = await Promise.all([
-      supabase.from('prepaid_accounts').select('*').order('created_at', { ascending: false }),
-      supabase.from('prepaid_usages').select('account_id,used_at').order('used_at', { ascending: false }),
+  async findCustomers(): Promise<PrepaidCustomer[]> {
+    const [customerResult, transactionResult] = await Promise.all([
+      supabase.from('prepaid_customers').select('*').order('created_at', { ascending: false }),
+      supabase.from('prepaid_transactions').select('*'),
     ]);
-    if (accountResult.error) throw accountResult.error;
-    if (usageResult.error) throw usageResult.error;
-    const lastUsedByAccount = new Map<string, string>();
-    for (const usage of usageResult.data ?? []) {
-      if (!lastUsedByAccount.has(usage.account_id)) {
-        lastUsedByAccount.set(usage.account_id, usage.used_at);
-      }
-    }
-    return (accountResult.data ?? []).map((row) =>
-      mapAccount(row, lastUsedByAccount.get(row.id)),
+    if (customerResult.error) throw customerResult.error;
+    if (transactionResult.error) throw transactionResult.error;
+    const rows = (transactionResult.data ?? []) as Row[];
+    return ((customerResult.data ?? []) as Row[]).map((customer) =>
+      mapCustomer(customer, rows.filter((transaction) => transaction.customer_id === customer.id)),
     );
   },
 
-  async create(input: {
-    companyName: string;
-    contactPerson: string;
-    phone?: string;
-    amount: number;
+  async createCustomer(input: {
+    name: string;
+    companyName?: string;
+    contactPerson?: string;
+    phone: string;
     memo?: string;
     employeeId: string;
     employeeName: string;
-  }): Promise<PrepaidAccount> {
-    const { data, error } = await supabase
-      .from('prepaid_accounts')
-      .insert({
-        company_name: input.companyName,
-        contact_person: input.contactPerson,
-        phone: input.phone?.replace(/\D/g, '') || null,
-        initial_amount: input.amount,
-        balance: input.amount,
-        memo: input.memo?.trim() || null,
-        created_by: input.employeeId,
-        created_by_name: input.employeeName,
-      })
-      .select()
-      .single();
-    if (error) throw error;
-    return mapAccount(data);
-  },
-
-  async registerUsage(accountId: string, amount: number, memo?: string): Promise<PrepaidUsage> {
-    const { data, error } = await supabase.rpc('register_prepaid_usage', {
-      p_account_id: accountId,
-      p_amount: amount,
-      p_memo: memo?.trim() || null,
+  }): Promise<void> {
+    const { error } = await supabase.from('prepaid_customers').insert({
+      name: input.name.trim(),
+      company_name: input.companyName?.trim() || null,
+      contact_person: input.contactPerson?.trim() || null,
+      phone: input.phone.replace(/\D/g, ''),
+      memo: input.memo?.trim() || null,
+      created_by: input.employeeId,
+      created_by_name: input.employeeName,
     });
     if (error) throw error;
-    return mapUsage(data);
   },
 
-  async update(accountId: string, initialAmount: number, memo?: string): Promise<PrepaidAccount> {
-    const { data, error } = await supabase.rpc('update_prepaid_account', {
-      p_account_id: accountId,
-      p_initial_amount: initialAmount,
-      p_memo: memo?.trim() || null,
-    });
+  async updateCustomer(customerId: string, input: {
+    name: string;
+    companyName?: string;
+    contactPerson?: string;
+    phone: string;
+    memo?: string;
+  }): Promise<void> {
+    const { error } = await supabase.from('prepaid_customers').update({
+      name: input.name.trim(),
+      company_name: input.companyName?.trim() || null,
+      contact_person: input.contactPerson?.trim() || null,
+      phone: input.phone.replace(/\D/g, ''),
+      memo: input.memo?.trim() || null,
+    }).eq('id', customerId);
     if (error) throw error;
-    return mapAccount(data);
   },
 
-  async delete(accountId: string): Promise<void> {
-    const { error } = await supabase.from('prepaid_accounts').delete().eq('id', accountId);
+  async deleteCustomer(customerId: string): Promise<void> {
+    const { error } = await supabase.from('prepaid_customers').delete().eq('id', customerId);
     if (error) throw error;
   },
 
-  async findUsages(accountId: string): Promise<PrepaidUsage[]> {
+  async findTransactions(customerId: string): Promise<PrepaidTransaction[]> {
     const { data, error } = await supabase
-      .from('prepaid_usages')
+      .from('prepaid_transactions')
       .select('*')
-      .eq('account_id', accountId)
-      .order('used_at', { ascending: false });
+      .eq('customer_id', customerId)
+      .order('transaction_date', { ascending: true })
+      .order('created_at', { ascending: true });
     if (error) throw error;
-    return (data ?? []).map(mapUsage);
+    let balance = 0;
+    return ((data ?? []) as Row[])
+      .map((row) => {
+        balance += signedAmount(row);
+        return mapTransaction(row, balance);
+      })
+      .reverse();
+  },
+
+  async saveTransaction(input: {
+    customerId: string;
+    type: PrepaidTransactionType;
+    amount: number;
+    transactionDate: string;
+    memo?: string;
+    transactionId?: string;
+  }): Promise<void> {
+    const { error } = await supabase.rpc('save_prepaid_transaction', {
+      p_customer_id: input.customerId,
+      p_transaction_type: input.type,
+      p_amount: input.amount,
+      p_transaction_date: input.transactionDate,
+      p_memo: input.memo?.trim() || null,
+      p_transaction_id: input.transactionId ?? null,
+    });
+    if (error) throw error;
+  },
+
+  async deleteTransaction(transactionId: string): Promise<void> {
+    const { error } = await supabase.rpc('delete_prepaid_transaction', {
+      p_transaction_id: transactionId,
+    });
+    if (error) throw error;
   },
 };

@@ -1,10 +1,11 @@
 import { prepaidRepository } from '@/repositories/prepaidRepository';
 
 export const prepaidService = {
-  list: () => prepaidRepository.findAll(),
-  create: prepaidRepository.create,
-  use: prepaidRepository.registerUsage,
-  update: prepaidRepository.update,
-  delete: prepaidRepository.delete,
-  listUsages: prepaidRepository.findUsages,
+  listCustomers: () => prepaidRepository.findCustomers(),
+  createCustomer: prepaidRepository.createCustomer,
+  updateCustomer: prepaidRepository.updateCustomer,
+  deleteCustomer: prepaidRepository.deleteCustomer,
+  listTransactions: prepaidRepository.findTransactions,
+  saveTransaction: prepaidRepository.saveTransaction,
+  deleteTransaction: prepaidRepository.deleteTransaction,
 };

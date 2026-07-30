@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Building2, CreditCard, History, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { ArrowDownCircle, ArrowUpCircle, Pencil, Plus, Search, Trash2, UserRound } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { Card } from '@/components/common/Card';
 import { Button } from '@/components/common/Button';
@@ -10,8 +10,8 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/common/Toast';
 import { prepaidService } from '@/services/prepaidService';
-import { formatDateTimeKo, formatMonthDay } from '@/utils/date';
-import type { PrepaidAccount, PrepaidUsage } from '@/data/types';
+import { formatDateTimeKo, formatMonthDay, todayStr } from '@/utils/date';
+import type { PrepaidCustomer, PrepaidTransaction, PrepaidTransactionType } from '@/data/types';
 
 function currency(value: number): string {
   return `${value.toLocaleString('ko-KR')}원`;
@@ -21,33 +21,40 @@ function amountValue(value: string): number {
   return Number(value.replace(/\D/g, '')) || 0;
 }
 
+function errorMessage(error: unknown, fallback: string): string {
+  if (error && typeof error === 'object' && 'message' in error) return String(error.message);
+  return fallback;
+}
+
 export function PrepaidManagementPage() {
   const { session } = useAuth();
   const { showToast } = useToast();
-  const [accounts, setAccounts] = useState<PrepaidAccount[]>([]);
+  const [customers, setCustomers] = useState<PrepaidCustomer[]>([]);
+  const [selected, setSelected] = useState<PrepaidCustomer>();
+  const [transactions, setTransactions] = useState<PrepaidTransaction[]>([]);
+  const [editingTransaction, setEditingTransaction] = useState<PrepaidTransaction>();
   const [query, setQuery] = useState('');
-  const [selected, setSelected] = useState<PrepaidAccount>();
-  const [usages, setUsages] = useState<PrepaidUsage[]>([]);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [usageOpen, setUsageOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [customerModal, setCustomerModal] = useState<'create' | 'edit'>();
+  const [transactionOpen, setTransactionOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<'customer' | 'transaction'>();
   const [saving, setSaving] = useState(false);
+
+  const [name, setName] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [contactPerson, setContactPerson] = useState('');
   const [phone, setPhone] = useState('');
-  const [amount, setAmount] = useState('');
   const [memo, setMemo] = useState('');
+  const [transactionType, setTransactionType] = useState<PrepaidTransactionType>('deposit');
+  const [amount, setAmount] = useState('');
+  const [transactionDate, setTransactionDate] = useState(todayStr());
 
   const load = useCallback(async () => {
     try {
-      const next = await prepaidService.list();
-      setAccounts(next);
-      setSelected((current) => current
-        ? next.find((account) => account.id === current.id)
-        : undefined);
+      const next = await prepaidService.listCustomers();
+      setCustomers(next);
+      setSelected((current) => current ? next.find((item) => item.id === current.id) : undefined);
     } catch {
-      showToast('선결제 목록을 불러오지 못했습니다.', 'error');
+      showToast('선결제 고객을 불러오지 못했습니다.', 'error');
     }
   }, [showToast]);
 
@@ -56,115 +63,136 @@ export function PrepaidManagementPage() {
   }, [load]);
 
   const filtered = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    if (!normalized) return accounts;
-    return accounts.filter((account) =>
-      account.companyName.toLowerCase().includes(normalized) ||
-      account.contactPerson.toLowerCase().includes(normalized),
+    const keyword = query.trim().toLowerCase().replace(/-/g, '');
+    if (!keyword) return customers;
+    return customers.filter((customer) =>
+      customer.name.toLowerCase().includes(keyword)
+      || customer.companyName?.toLowerCase().includes(keyword)
+      || customer.contactPerson?.toLowerCase().includes(keyword)
+      || customer.phone.replace(/-/g, '').includes(keyword),
     );
-  }, [accounts, query]);
+  }, [customers, query]);
 
-  const resetForm = () => {
+  const loadTransactions = async (customerId: string) => {
+    setTransactions(await prepaidService.listTransactions(customerId));
+  };
+
+  const openDetail = async (customer: PrepaidCustomer) => {
+    setSelected(customer);
+    try {
+      await loadTransactions(customer.id);
+    } catch {
+      showToast('거래내역을 불러오지 못했습니다.', 'error');
+    }
+  };
+
+  const resetCustomerForm = () => {
+    setName('');
     setCompanyName('');
     setContactPerson('');
     setPhone('');
-    setAmount('');
     setMemo('');
   };
 
-  const openCreate = () => {
-    resetForm();
-    setCreateOpen(true);
+  const openCreateCustomer = () => {
+    resetCustomerForm();
+    setCustomerModal('create');
   };
 
-  const openDetail = async (account: PrepaidAccount) => {
-    setSelected(account);
-    try {
-      setUsages(await prepaidService.listUsages(account.id));
-    } catch {
-      showToast('사용 내역을 불러오지 못했습니다.', 'error');
-    }
-  };
-
-  const create = async () => {
-    if (!session || !companyName.trim() || !contactPerson.trim() || amountValue(amount) <= 0) return;
-    setSaving(true);
-    try {
-      await prepaidService.create({
-        companyName: companyName.trim(),
-        contactPerson: contactPerson.trim(),
-        phone,
-        amount: amountValue(amount),
-        memo,
-        employeeId: session.employeeId,
-        employeeName: session.name,
-      });
-      setCreateOpen(false);
-      resetForm();
-      await load();
-      showToast('선결제를 등록했습니다.');
-    } catch {
-      showToast('선결제 등록에 실패했습니다.', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const openUsage = () => {
-    setAmount('');
-    setMemo('');
-    setUsageOpen(true);
-  };
-
-  const registerUsage = async () => {
-    if (!selected || amountValue(amount) <= 0 || saving) return;
-    setSaving(true);
-    try {
-      await prepaidService.use(selected.id, amountValue(amount), memo);
-      setUsageOpen(false);
-      await load();
-      setUsages(await prepaidService.listUsages(selected.id));
-      showToast('사용 금액을 등록했습니다.');
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : '사용 등록에 실패했습니다.', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const openEdit = () => {
+  const openEditCustomer = () => {
     if (!selected) return;
-    setAmount(String(selected.initialAmount));
+    setName(selected.name);
+    setCompanyName(selected.companyName ?? '');
+    setContactPerson(selected.contactPerson ?? '');
+    setPhone(selected.phone);
     setMemo(selected.memo ?? '');
-    setEditOpen(true);
+    setCustomerModal('edit');
   };
 
-  const update = async () => {
-    if (!selected || amountValue(amount) <= 0 || saving) return;
+  const saveCustomer = async () => {
+    if (!session || !name.trim() || !phone.replace(/\D/g, '') || saving) return;
     setSaving(true);
     try {
-      await prepaidService.update(selected.id, amountValue(amount), memo);
-      setEditOpen(false);
+      const input = { name, companyName, contactPerson, phone, memo };
+      if (customerModal === 'edit' && selected) {
+        await prepaidService.updateCustomer(selected.id, input);
+        showToast('고객 정보를 수정했습니다.');
+      } else {
+        await prepaidService.createCustomer({
+          ...input,
+          employeeId: session.employeeId,
+          employeeName: session.name,
+        });
+        showToast('신규 고객을 등록했습니다.');
+      }
+      setCustomerModal(undefined);
       await load();
-      showToast('선결제 정보를 수정했습니다.');
     } catch (error) {
-      showToast(error instanceof Error ? error.message : '수정에 실패했습니다.', 'error');
+      showToast(errorMessage(error, '고객 저장에 실패했습니다.'), 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openNewTransaction = () => {
+    setEditingTransaction(undefined);
+    setTransactionType('deposit');
+    setAmount('');
+    setTransactionDate(todayStr());
+    setMemo('');
+    setTransactionOpen(true);
+  };
+
+  const openEditTransaction = (transaction: PrepaidTransaction) => {
+    setEditingTransaction(transaction);
+    setTransactionType(transaction.type);
+    setAmount(String(transaction.amount));
+    setTransactionDate(transaction.transactionDate);
+    setMemo(transaction.memo ?? '');
+    setTransactionOpen(true);
+  };
+
+  const saveTransaction = async () => {
+    if (!selected || amountValue(amount) <= 0 || !transactionDate || saving) return;
+    setSaving(true);
+    try {
+      await prepaidService.saveTransaction({
+        customerId: selected.id,
+        type: transactionType,
+        amount: amountValue(amount),
+        transactionDate,
+        memo,
+        transactionId: editingTransaction?.id,
+      });
+      setTransactionOpen(false);
+      await Promise.all([load(), loadTransactions(selected.id)]);
+      showToast(editingTransaction ? '거래내역을 수정했습니다.' : '거래내역을 추가했습니다.');
+    } catch (error) {
+      showToast(errorMessage(error, '거래 저장에 실패했습니다.'), 'error');
     } finally {
       setSaving(false);
     }
   };
 
   const remove = async () => {
-    if (!selected) return;
+    if (!selected || !deleteTarget) return;
     try {
-      await prepaidService.delete(selected.id);
-      setDeleting(false);
-      setSelected(undefined);
-      setUsages([]);
-      await load();
-      showToast('선결제 회사를 삭제했습니다.');
-    } catch {
-      showToast('삭제에 실패했습니다.', 'error');
+      if (deleteTarget === 'transaction' && editingTransaction) {
+        await prepaidService.deleteTransaction(editingTransaction.id);
+        await Promise.all([load(), loadTransactions(selected.id)]);
+        setTransactionOpen(false);
+        showToast('거래내역을 삭제했습니다.');
+      } else {
+        await prepaidService.deleteCustomer(selected.id);
+        setSelected(undefined);
+        setTransactions([]);
+        await load();
+        showToast('고객을 삭제했습니다.');
+      }
+      setDeleteTarget(undefined);
+      setEditingTransaction(undefined);
+    } catch (error) {
+      showToast(errorMessage(error, '삭제에 실패했습니다.'), 'error');
     }
   };
 
@@ -177,49 +205,41 @@ export function PrepaidManagementPage() {
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="회사명 또는 담당자 검색"
+              placeholder="이름, 회사명, 담당자, 전화번호 검색"
               className="w-full bg-transparent text-sm text-ink outline-none placeholder:text-ink-faint"
             />
           </label>
-          <Button onClick={openCreate}>
-            <span className="flex items-center gap-1.5"><Plus size={17} /> 선결제 등록</span>
+          <Button onClick={openCreateCustomer}>
+            <span className="flex items-center gap-1.5"><Plus size={17} /> 신규 고객</span>
           </Button>
         </div>
 
         {filtered.length === 0 ? (
-          <Card><EmptyState icon="💳" title={query ? '검색 결과가 없습니다' : '등록된 선결제가 없습니다'} /></Card>
+          <Card><EmptyState icon="💳" title={query ? '검색 결과가 없습니다' : '등록된 고객이 없습니다'} /></Card>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {filtered.map((account) => (
-              <button key={account.id} onClick={() => void openDetail(account)} className="text-left">
+            {filtered.map((customer) => (
+              <button key={customer.id} onClick={() => void openDetail(customer)} className="text-left">
                 <Card hover className="h-full">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="truncate text-lg font-bold text-ink">{account.companyName}</p>
-                      <p className="mt-0.5 text-sm text-ink-soft">{account.contactPerson}</p>
+                      <p className="truncate text-lg font-bold text-ink">{customer.name}</p>
+                      {customer.companyName && <p className="mt-0.5 truncate text-sm text-ink-soft">{customer.companyName}</p>}
+                      <p className="mt-1 text-xs text-ink-faint">{customer.phone}</p>
                     </div>
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-red-light text-brand-red">
-                      <Building2 size={19} />
+                      <UserRound size={19} />
                     </span>
                   </div>
                   <div className="mt-6">
                     <p className="text-xs font-semibold text-ink-faint">현재 잔액</p>
-                    <p className="mt-1 text-3xl font-bold tracking-[-0.03em] text-ink">{currency(account.balance)}</p>
+                    <p className="mt-1 text-3xl font-bold tracking-[-0.03em] text-ink">{currency(customer.balance)}</p>
                   </div>
-                  <div className="mt-5 flex items-end justify-between gap-2">
-                    <div>
-                      <p className="text-[11px] text-ink-faint">최근 사용</p>
-                      <p className="text-sm font-semibold text-ink-soft">
-                        {account.lastUsedAt ? formatMonthDay(account.lastUsedAt.slice(0, 10)) : '사용 내역 없음'}
-                      </p>
-                    </div>
-                    <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${
-                      account.balance > 0
-                        ? 'bg-emerald-50 text-emerald-700'
-                        : 'bg-red-50 text-red-600'
-                    }`}>
-                      {account.balance > 0 ? '🟢 사용 가능' : '🔴 사용 완료'}
-                    </span>
+                  <div className="mt-5">
+                    <p className="text-[11px] text-ink-faint">최근 거래</p>
+                    <p className="text-sm font-semibold text-ink-soft">
+                      {customer.lastTransactionAt ? formatMonthDay(customer.lastTransactionAt) : '거래내역 없음'}
+                    </p>
                   </div>
                 </Card>
               </button>
@@ -229,67 +249,79 @@ export function PrepaidManagementPage() {
       </div>
 
       <Modal
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        title="선결제 등록"
-        footer={<Button fullWidth onClick={() => void create()} disabled={saving || !companyName.trim() || !contactPerson.trim() || amountValue(amount) <= 0}>{saving ? '등록 중...' : '등록'}</Button>}
+        open={!!customerModal}
+        onClose={() => setCustomerModal(undefined)}
+        title={customerModal === 'edit' ? '고객 정보 수정' : '신규 고객'}
+        footer={<Button fullWidth onClick={() => void saveCustomer()} disabled={saving || !name.trim() || !phone.replace(/\D/g, '')}>{saving ? '저장 중...' : '저장'}</Button>}
       >
         <div className="pb-5">
-          <Input label="회사명" value={companyName} onChange={(event) => setCompanyName(event.target.value)} />
-          <Input label="담당자" value={contactPerson} onChange={(event) => setContactPerson(event.target.value)} />
-          <Input label="연락처 (선택)" inputMode="tel" value={phone} onChange={(event) => setPhone(event.target.value)} />
-          <Input label="선결제 금액" inputMode="numeric" value={amount} onChange={(event) => setAmount(event.target.value.replace(/\D/g, ''))} placeholder="500000" />
-          {amountValue(amount) > 0 && <p className="-mt-2 mb-4 text-sm font-bold text-brand-red">{currency(amountValue(amount))}</p>}
+          <Input label="이름" value={name} onChange={(event) => setName(event.target.value)} />
+          <Input label="회사명 (선택)" value={companyName} onChange={(event) => setCompanyName(event.target.value)} />
+          <Input label="담당자 (선택)" value={contactPerson} onChange={(event) => setContactPerson(event.target.value)} />
+          <Input label="전화번호" inputMode="tel" value={phone} onChange={(event) => setPhone(event.target.value)} />
           <Textarea label="메모" value={memo} onChange={(event) => setMemo(event.target.value)} />
         </div>
       </Modal>
 
-      {selected && !usageOpen && !editOpen && (
+      {selected && !customerModal && !transactionOpen && (
         <Modal
           open
           onClose={() => setSelected(undefined)}
-          title={selected.companyName}
-          footer={
-            <Button fullWidth onClick={openUsage} disabled={selected.balance <= 0}>
-              <span className="flex items-center justify-center gap-1.5"><CreditCard size={17} /> 사용 등록</span>
-            </Button>
-          }
+          title={selected.name}
+          footer={<Button fullWidth onClick={openNewTransaction}><span className="flex items-center justify-center gap-1.5"><Plus size={17} /> 거래내역 추가</span></Button>}
         >
           <div className="space-y-5 pb-5">
             <div className="rounded-[22px] bg-gradient-to-br from-brand-red to-[#52A8FF] p-5 text-white">
               <p className="text-xs font-semibold text-white/70">현재 잔액</p>
-              <p className="mt-1 text-3xl font-bold">{currency(selected.balance)}</p>
-              <p className="mt-3 text-xs text-white/70">최초 선결제 {currency(selected.initialAmount)}</p>
+              <p className="mt-1 text-4xl font-bold tracking-[-0.04em]">{currency(selected.balance)}</p>
             </div>
             <div className="rounded-2xl bg-brand-beige-light p-4 text-sm">
-              <p className="font-bold text-ink">{selected.contactPerson}</p>
-              {selected.phone && <p className="mt-1 text-ink-soft">{selected.phone}</p>}
+              {selected.companyName && <p className="font-bold text-ink">{selected.companyName}</p>}
+              {selected.contactPerson && <p className="mt-1 text-ink-soft">담당자 {selected.contactPerson}</p>}
+              <p className="mt-1 text-ink-soft">{selected.phone}</p>
               {selected.memo && <p className="mt-2 text-ink-soft">{selected.memo}</p>}
-              <p className="mt-2 text-xs text-ink-faint">등록 {formatDateTimeKo(selected.createdAt)} · {selected.createdByName}</p>
             </div>
             <div className="flex gap-2">
-              <Button size="sm" variant="secondary" onClick={openEdit}>
-                <span className="flex items-center gap-1"><Pencil size={14} /> 수정</span>
-              </Button>
-              <Button size="sm" variant="danger" onClick={() => setDeleting(true)}>
-                <span className="flex items-center gap-1"><Trash2 size={14} /> 삭제</span>
-              </Button>
+              <Button size="sm" variant="secondary" onClick={openEditCustomer}><span className="flex items-center gap-1"><Pencil size={14} /> 고객 수정</span></Button>
+              <Button size="sm" variant="danger" onClick={() => setDeleteTarget('customer')}><span className="flex items-center gap-1"><Trash2 size={14} /> 고객 삭제</span></Button>
             </div>
             <section>
-              <p className="mb-3 flex items-center gap-1.5 font-bold text-ink"><History size={17} /> 사용 내역</p>
-              {usages.length === 0 ? (
-                <p className="text-sm text-ink-faint">아직 사용 내역이 없습니다.</p>
+              <p className="mb-3 font-bold text-ink">거래내역</p>
+              {transactions.length === 0 ? (
+                <p className="text-sm text-ink-faint">아직 거래내역이 없습니다.</p>
               ) : (
-                <div className="space-y-2">
-                  {usages.map((usage) => (
-                    <div key={usage.id} className="rounded-2xl border border-black/[0.05] bg-white p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="font-bold text-ink">-{currency(usage.amount)}</p>
-                        <p className="text-xs text-ink-faint">{formatDateTimeKo(usage.usedAt)}</p>
-                      </div>
-                      <p className="mt-1 text-sm text-ink-soft">{usage.usedByName}{usage.memo ? ` · ${usage.memo}` : ''}</p>
-                    </div>
-                  ))}
+                <div className="space-y-3">
+                  {transactions.map((transaction) => {
+                    const isDeposit = transaction.type === 'deposit';
+                    return (
+                      <button key={transaction.id} onClick={() => openEditTransaction(transaction)} className="w-full rounded-2xl border border-black/[0.05] bg-white p-4 text-left press-scale">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex gap-2.5">
+                            {isDeposit
+                              ? <ArrowUpCircle size={21} className="mt-0.5 text-emerald-600" />
+                              : <ArrowDownCircle size={21} className="mt-0.5 text-red-500" />}
+                            <div>
+                              <p className={`text-lg font-bold ${isDeposit ? 'text-emerald-600' : 'text-red-500'}`}>
+                                {isDeposit ? '+' : '-'}{currency(transaction.amount)}
+                              </p>
+                              <p className="text-sm font-semibold text-ink">{isDeposit ? '선결제' : '사용'}</p>
+                            </div>
+                          </div>
+                          <p className="text-xs text-ink-faint">{formatMonthDay(transaction.transactionDate)}</p>
+                        </div>
+                        <div className="mt-3 flex items-end justify-between border-t border-black/[0.05] pt-3">
+                          <div>
+                            {transaction.memo && <p className="text-sm text-ink-soft">{transaction.memo}</p>}
+                            <p className="mt-1 text-[11px] text-ink-faint">{transaction.createdByName} · {formatDateTimeKo(transaction.createdAt)}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-[11px] text-ink-faint">당시 잔액</p>
+                            <p className="font-bold text-ink">{currency(transaction.balanceAfter)}</p>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </section>
@@ -298,40 +330,37 @@ export function PrepaidManagementPage() {
       )}
 
       <Modal
-        open={usageOpen}
-        onClose={() => setUsageOpen(false)}
-        title="사용 등록"
-        footer={<Button fullWidth onClick={() => void registerUsage()} disabled={saving || amountValue(amount) <= 0 || amountValue(amount) > (selected?.balance ?? 0)}>{saving ? '등록 중...' : '등록'}</Button>}
+        open={transactionOpen}
+        onClose={() => { setTransactionOpen(false); setEditingTransaction(undefined); }}
+        title={editingTransaction ? '거래내역 수정' : '거래내역 추가'}
+        footer={
+          <div className="flex gap-2">
+            {editingTransaction && <Button variant="danger" onClick={() => setDeleteTarget('transaction')}>삭제</Button>}
+            <Button fullWidth onClick={() => void saveTransaction()} disabled={saving || amountValue(amount) <= 0 || !transactionDate}>{saving ? '저장 중...' : '등록'}</Button>
+          </div>
+        }
       >
         <div className="pb-5">
-          <p className="mb-4 rounded-2xl bg-brand-red-light p-4 text-sm font-semibold text-brand-red">
-            사용 가능 잔액 {currency(selected?.balance ?? 0)}
-          </p>
-          <Input label="사용 금액" inputMode="numeric" value={amount} onChange={(event) => setAmount(event.target.value.replace(/\D/g, ''))} />
-          <Textarea label="메모" value={memo} onChange={(event) => setMemo(event.target.value)} />
-        </div>
-      </Modal>
-
-      <Modal
-        open={editOpen}
-        onClose={() => setEditOpen(false)}
-        title="선결제 수정"
-        footer={<Button fullWidth onClick={() => void update()} disabled={saving || amountValue(amount) <= 0}>{saving ? '수정 중...' : '수정 완료'}</Button>}
-      >
-        <div className="pb-5">
-          <Input label="선결제 금액" inputMode="numeric" value={amount} onChange={(event) => setAmount(event.target.value.replace(/\D/g, ''))} />
+          <p className="mb-2 text-[13px] font-semibold text-ink-soft">거래 종류</p>
+          <div className="mb-5 grid grid-cols-2 gap-2">
+            <button onClick={() => setTransactionType('deposit')} className={`min-h-12 rounded-2xl font-bold ${transactionType === 'deposit' ? 'bg-emerald-50 text-emerald-700 ring-2 ring-emerald-500' : 'bg-brand-beige-light text-ink-soft'}`}>○ 선결제 (+)</button>
+            <button onClick={() => setTransactionType('usage')} className={`min-h-12 rounded-2xl font-bold ${transactionType === 'usage' ? 'bg-red-50 text-red-600 ring-2 ring-red-400' : 'bg-brand-beige-light text-ink-soft'}`}>○ 사용 (-)</button>
+          </div>
+          <Input label="금액" inputMode="numeric" value={amount} onChange={(event) => setAmount(event.target.value.replace(/\D/g, ''))} />
+          {amountValue(amount) > 0 && <p className="-mt-2 mb-4 text-sm font-bold text-brand-red">{currency(amountValue(amount))}</p>}
+          <Input label="등록일 / 사용일" type="date" value={transactionDate} onChange={(event) => setTransactionDate(event.target.value)} />
           <Textarea label="메모" value={memo} onChange={(event) => setMemo(event.target.value)} />
         </div>
       </Modal>
 
       <ConfirmDialog
-        open={deleting}
-        title="선결제 회사를 삭제하시겠습니까?"
-        description="회사 정보와 모든 사용 내역이 함께 삭제되며 복구할 수 없습니다."
+        open={!!deleteTarget}
+        title={deleteTarget === 'customer' ? '고객을 삭제하시겠습니까?' : '거래내역을 삭제하시겠습니까?'}
+        description={deleteTarget === 'customer' ? '고객과 모든 거래내역이 함께 삭제되며 복구할 수 없습니다.' : '삭제 후 잔액이 자동으로 다시 계산됩니다.'}
         confirmLabel="삭제"
         danger
         onConfirm={() => void remove()}
-        onClose={() => setDeleting(false)}
+        onClose={() => setDeleteTarget(undefined)}
       />
     </Layout>
   );
