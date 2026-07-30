@@ -5,7 +5,7 @@ import { BottomNav } from '@/components/layout/BottomNav';
 import { Header } from '@/components/layout/Header';
 import { useAuth } from '@/contexts/AuthContext';
 import { PageHeader } from '@/components/common/PageHeader';
-import { CalendarDays, ClipboardList, Clock3, Coffee, CreditCard, LayoutDashboard, Megaphone, Package, Users, WalletCards } from 'lucide-react';
+import { CalendarDays, ChartNoAxesCombined, ClipboardList, Clock3, Coffee, CreditCard, LayoutDashboard, Megaphone, Package, Users, WalletCards } from 'lucide-react';
 
 const PAGE_META = {
   '대시보드': { description: '매장의 오늘을 한눈에 보고, 다음 행동에 집중하세요.', icon: LayoutDashboard },
@@ -17,6 +17,7 @@ const PAGE_META = {
   '내일 해야 할 것': { description: '다음 오픈 준비를 함께 확인하고 빠짐없이 마무리하세요.', icon: ClipboardList },
   '공지사항': { description: '매장 공지를 작성하고 직원 확인 현황을 관리하세요.', icon: Megaphone },
   '선결제 관리': { description: '회사별 선결제 잔액과 사용 내역을 정확하게 관리하세요.', icon: CreditCard },
+  '월 손익계산서': { description: '월별 매출과 비용을 입력하고 매장의 수익성을 한눈에 확인하세요.', icon: ChartNoAxesCombined },
   '급여관리': { description: '근무 기록에서 정산까지 투명하게 확인하세요.', icon: WalletCards },
   '급여명세': { description: '직원별 근무와 지급 내역을 자세히 확인하세요.', icon: WalletCards },
   '근로시간': { description: '출퇴근과 누적 근무시간을 정확하게 기록하세요.', icon: Clock3 },

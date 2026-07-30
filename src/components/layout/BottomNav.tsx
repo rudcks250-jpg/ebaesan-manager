@@ -14,9 +14,10 @@ import {
   ClipboardList,
   Megaphone,
   CreditCard,
+  ChartNoAxesCombined,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { canAccess, canAccessTomorrowPrep, canManageNotices, type FeatureKey } from '@/utils/permission';
+import { canAccess, canAccessTomorrowPrep, canManageNotices, canViewProfitLoss, type FeatureKey } from '@/utils/permission';
 
 interface NavItem {
   to: string;
@@ -83,6 +84,7 @@ export function BottomNav() {
   const isRealAdmin = session?.role === 'admin';
   const hasTomorrowPrepAccess = canAccessTomorrowPrep(session?.name);
   const hasNoticeManagementAccess = canManageNotices(session?.name);
+  const hasProfitLossAccess = canViewProfitLoss(session?.name);
 
   // 직원 계열 화면: 매니저에게만 발주관리 탭을 추가합니다.
   if (effectiveRole === 'employee' || effectiveRole === 'manager') {
@@ -189,6 +191,19 @@ export function BottomNav() {
                 >
                   <Megaphone size={21} className="text-ink" strokeWidth={2} />
                   <span className="text-xs font-semibold text-ink">공지사항</span>
+                </button>
+              )}
+
+              {hasProfitLossAccess && (
+                <button
+                  onClick={() => {
+                    setMoreOpen(false);
+                    navigate('/profit-loss');
+                  }}
+                  className="flex flex-col items-center gap-1.5 py-4 rounded-2xl hover:bg-brand-beige-light press-scale"
+                >
+                  <ChartNoAxesCombined size={21} className="text-ink" strokeWidth={2} />
+                  <span className="text-xs font-semibold text-ink">손익계산서</span>
                 </button>
               )}
 

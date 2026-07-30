@@ -14,6 +14,8 @@ import { TomorrowPrepPage } from '@/features/tomorrowPrep/TomorrowPrepPage';
 import { canAccessTomorrowPrep, canManageNotices } from '@/utils/permission';
 import { NoticeManagementPage } from '@/features/notices/NoticeManagementPage';
 import { PrepaidManagementPage } from '@/features/prepaid/PrepaidManagementPage';
+import { ProfitLossPage } from '@/features/profitLoss/ProfitLossPage';
+import { canViewProfitLoss } from '@/utils/permission';
 
 function TomorrowPrepRoute() {
   const { session } = useAuth();
@@ -29,6 +31,22 @@ function NoticeManagementRoute() {
     return <Navigate to="/dashboard" replace />;
   }
   return <NoticeManagementPage />;
+}
+
+function ProfitLossRoute() {
+  const { session } = useAuth();
+  if (!canViewProfitLoss(session?.name)) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-brand-beige-light px-5">
+        <div className="w-full max-w-md rounded-[28px] bg-white p-8 text-center shadow-premium">
+          <p className="text-5xl">🔒</p>
+          <h1 className="mt-5 text-2xl font-bold text-ink">접근 권한이 없습니다.</h1>
+          <p className="mt-2 text-sm text-ink-soft">월 손익계산서는 대표 계정만 확인할 수 있습니다.</p>
+        </div>
+      </div>
+    );
+  }
+  return <ProfitLossPage />;
 }
 
 function LoginRoute() {
@@ -128,6 +146,14 @@ export function AppRouter() {
           element={
             <RequireAuth feature="prepayments">
               <PrepaidManagementPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/profit-loss"
+          element={
+            <RequireAuth feature="profitLoss">
+              <ProfitLossRoute />
             </RequireAuth>
           }
         />
