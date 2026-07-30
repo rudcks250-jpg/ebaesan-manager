@@ -293,6 +293,7 @@ export const jiwooFoodItems: NonNullable<Vendor['items']> = [
   { id: 'item_cotton_gloves', name: '목장갑', unit: '켤레', defaultQty: 1 },
   { id: 'item_seaweed_flakes', name: '김가루', unit: '봉', defaultQty: 1 },
   { id: 'item_dish_soap', name: '주방세제', unit: '통', defaultQty: 1 },
+  { id: 'item_paper_towel_box', name: '페이파타월', unit: '박스', defaultQty: 1 },
   { id: 'item_paper_cup', name: '종이컵', unit: '줄', defaultQty: 1 },
   { id: 'item_nitrile_gloves', name: '니트릴장갑 L', unit: 'L', defaultQty: 1 },
 ];

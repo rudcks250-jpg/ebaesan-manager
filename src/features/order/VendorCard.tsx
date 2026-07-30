@@ -71,6 +71,7 @@ const JIWOO_FOOD_STANDARDS: Readonly<Record<string, { name: string; specificatio
   양파: { name: '양파', specification: '15kg' },
   와사비: { name: '와사비', specification: '750g' },
   유한락스: { name: '유한락스', specification: 'BOX' },
+  페이파타월: { name: '페이파타월', specification: '박스' },
   종이컵: { name: '종이컵', specification: '1000개' },
   종이타월: { name: '종이타월', specification: '4500장' },
   주키니호박: { name: '주키니호박', specification: '개' },
