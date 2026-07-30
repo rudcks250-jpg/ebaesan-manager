@@ -20,18 +20,46 @@ export interface LoginResult {
 
 export const authService = {
   async login(name: string, password: string): Promise<LoginResult> {
-    const { data: loginEmail, error: lookupError } = await supabase.rpc('lookup_login_email', {
-      p_name: name.trim(),
+    const normalizedName = name.trim().replace(/\s+/g, ' ');
+    const normalizedPassword = password.trim().replace(/[\s-]/g, '');
+    let { data: loginEmail, error: lookupError } = await supabase.rpc('lookup_login_email', {
+      p_name: normalizedName,
     });
 
     if (lookupError || !loginEmail) {
-      return { success: false, errorMessage: '아이디 또는 비밀번호가 올바르지 않습니다.' };
+      const repair = await supabase.functions.invoke('sync-employee-account', {
+        body: { mode: 'repair-login', name: normalizedName, password: normalizedPassword },
+      });
+      if (repair.error) {
+        return { success: false, errorMessage: '아이디 또는 비밀번호가 올바르지 않습니다.' };
+      }
+      const lookupRetry = await supabase.rpc('lookup_login_email', { p_name: normalizedName });
+      loginEmail = lookupRetry.data;
+      lookupError = lookupRetry.error;
+      if (lookupError || !loginEmail) {
+        return { success: false, errorMessage: '아이디 또는 비밀번호가 올바르지 않습니다.' };
+      }
     }
 
-    const { data, error } = await supabase.auth.signInWithPassword({
+    let { data, error } = await supabase.auth.signInWithPassword({
       email: loginEmail,
-      password,
+      password: normalizedPassword,
     });
+
+    if (error || !data.user) {
+      const { error: repairError } = await supabase.functions.invoke('sync-employee-account', {
+        body: { mode: 'repair-login', name: normalizedName, password: normalizedPassword },
+      });
+      if (!repairError) {
+        const lookupRetry = await supabase.rpc('lookup_login_email', { p_name: normalizedName });
+        const retry = await supabase.auth.signInWithPassword({
+          email: lookupRetry.data || loginEmail,
+          password: normalizedPassword,
+        });
+        data = retry.data;
+        error = retry.error;
+      }
+    }
 
     if (error || !data.user) {
       return { success: false, errorMessage: '아이디 또는 비밀번호가 올바르지 않습니다.' };

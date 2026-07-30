@@ -100,6 +100,33 @@ export const employeeService = {
 
   async update(id: string, patch: Partial<Employee>): Promise<Employee | undefined> {
     try {
+      if (patch.name !== undefined || patch.phone !== undefined) {
+        const current = await employeeRepository.findById(id);
+        if (!current) throw new Error('직원 정보를 찾을 수 없습니다.');
+        const nextName = (patch.name ?? current.name).trim().replace(/\s+/g, ' ');
+        const nextPhone = (patch.phone ?? current.phone).replace(/\D/g, '');
+        const credentialsChanged =
+          nextName !== current.name.trim().replace(/\s+/g, ' ')
+          || nextPhone !== current.phone.replace(/\D/g, '');
+        if (credentialsChanged) {
+          const { data, error } = await supabase.functions.invoke('sync-employee-account', {
+            body: { employeeId: id, name: nextName, phone: nextPhone },
+          });
+          if (error) throw new Error(await functionErrorMessage(error, '로그인 계정 동기화에 실패했습니다.'));
+          if (data?.error) throw new Error(data.error);
+        }
+        const remainingPatch = { ...patch };
+        delete remainingPatch.name;
+        delete remainingPatch.phone;
+        if (Object.keys(remainingPatch).length === 0) {
+          return employeeRepository.findById(id);
+        }
+        if (!credentialsChanged) {
+          remainingPatch.name = nextName;
+          remainingPatch.phone = nextPhone;
+        }
+        return employeeRepository.update(id, remainingPatch);
+      }
       return await employeeRepository.update(id, patch);
     } catch (error) {
       const code = (error as { code?: string })?.code;
