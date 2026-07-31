@@ -29,7 +29,7 @@ interface MonthlyProfitLoss {
 const FULL_TIME = ['김경재', '박경찬', '김하은'];
 const FOOD = ['축산유통', '식자재유통'];
 const DRINKS = ['주류', '음료'];
-const ADS = ['플레이스 광고', '메타 광고', '리워드', '당근 광고', '블로그 리뷰'];
+const ADS = ['플레이스 광고', '메타 광고', '리워드', '당근 광고', '블로그 리뷰', '검색광고 대행비'];
 const OPERATIONS = ['카드수수료', '4대보험', '기타운영비'];
 const FIXED_COSTS = [
   '임대료', '전기세', '카드값', '외식업협회비', '화재보험',
