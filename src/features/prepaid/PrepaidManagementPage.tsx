@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowDownCircle, ArrowUpCircle, Plus, Search, UserRound } from 'lucide-react';
+import { AlertTriangle, ArrowDownCircle, ArrowRight, ArrowUpCircle, ChevronDown, Plus, Search, UserRound } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { Card } from '@/components/common/Card';
 import { Button } from '@/components/common/Button';
@@ -32,6 +32,138 @@ function phone(value: string): string {
 function message(error: unknown, fallback: string): string {
   if (error && typeof error === 'object' && 'message' in error) return String(error.message);
   return fallback;
+}
+
+const NEW_PREPAYMENT_STEPS: { text: string; sub?: string[] }[] = [
+  { text: '고객님의 카드를 받아 선결제를 결제합니다.' },
+  { text: '매장 선결제 명함에 아래 내용을 작성합니다.', sub: ['고객 성함', '결제 금액', '날짜'] },
+  { text: '명함을 사진으로 촬영합니다.' },
+  { text: '사진 촬영 후 전산(선결제 관리)에 신규 선결제를 등록합니다.' },
+  { text: '마지막으로 고객님께 명함을 전달합니다.' },
+];
+
+const USAGE_CASES = [
+  {
+    title: '결제 금액이 선결제 금액보다 큰 경우',
+    balance: 50000,
+    payment: 70000,
+    points: ['차액 20,000원만 추가 결제합니다.', '기존 선결제 명함은 폐기합니다.', '전산 잔액은 0원으로 처리합니다.'],
+  },
+  {
+    title: '선결제 금액이 더 많이 남는 경우',
+    balance: 100000,
+    payment: 40000,
+    points: ['기존 명함은 폐기합니다.', '남은 금액 60,000원을 새로운 명함에 작성하여 고객님께 전달합니다.', '전산에도 남은 금액으로 수정합니다.'],
+  },
+];
+
+const ORDER_STEPS = ['결제', '명함 작성', '명함 사진 촬영', '전산 입력', '고객에게 명함 전달'];
+
+const COMMON_MISTAKES = [
+  '명함 작성 전에 고객에게 먼저 전달하는 경우',
+  '사진을 찍지 않고 전달하는 경우',
+  '전산 입력을 하지 않는 경우',
+  '기존 명함을 폐기하지 않는 경우',
+  '남은 금액을 새 명함에 작성하지 않는 경우',
+];
+
+function UsageManualCard() {
+  const [open, setOpen] = useState(false);
+  return (
+    <Card className="bg-gradient-to-br from-white to-brand-red-light/60 border-brand-red/10">
+      <button onClick={() => setOpen((value) => !value)} className="flex w-full items-center justify-between gap-3 text-left">
+        <span className="flex items-center gap-3 text-lg font-bold text-ink sm:text-xl">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-2xl shadow-sm ring-1 ring-black/[0.05]">📖</span>
+          선결제 사용 방법
+        </span>
+        <ChevronDown size={24} className={`shrink-0 text-ink-faint transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="mt-6 space-y-7">
+          <section>
+            <p className="mb-3 text-base font-bold text-brand-red sm:text-lg">📌 신규 선결제</p>
+            <ol className="space-y-3">
+              {NEW_PREPAYMENT_STEPS.map((step, index) => (
+                <li key={step.text} className="flex gap-3 rounded-2xl bg-white p-4 ring-1 ring-black/[0.05]">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-red text-sm font-bold text-white">{index + 1}</span>
+                  <div>
+                    <p className="text-base font-semibold leading-relaxed text-ink sm:text-lg">{step.text}</p>
+                    {step.sub && (
+                      <ul className="mt-2 space-y-1">
+                        {step.sub.map((item) => (
+                          <li key={item} className="text-sm font-semibold text-ink-soft sm:text-base">· {item}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </section>
+
+          <section>
+            <p className="mb-3 text-base font-bold text-brand-red sm:text-lg">📌 선결제 사용 시</p>
+            <div className="space-y-4">
+              {USAGE_CASES.map((useCase, index) => (
+                <div key={useCase.title} className="rounded-2xl bg-white p-4 ring-1 ring-black/[0.05]">
+                  <p className="mb-3 text-base font-bold text-ink sm:text-lg">{index === 0 ? '①' : '②'} {useCase.title}</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-xl bg-brand-beige-light p-3 text-center">
+                      <p className="text-xs font-semibold text-ink-faint sm:text-sm">선결제 잔액</p>
+                      <p className="mt-1 text-lg font-bold text-ink sm:text-xl">{currency(useCase.balance)}</p>
+                    </div>
+                    <div className="rounded-xl bg-brand-beige-light p-3 text-center">
+                      <p className="text-xs font-semibold text-ink-faint sm:text-sm">결제금액</p>
+                      <p className="mt-1 text-lg font-bold text-ink sm:text-xl">{currency(useCase.payment)}</p>
+                    </div>
+                  </div>
+                  <ul className="mt-3 space-y-1.5">
+                    {useCase.points.map((point) => (
+                      <li key={point} className="flex gap-2 text-sm font-semibold text-ink-soft sm:text-base">
+                        <span className="text-brand-red">→</span>{point}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-2xl bg-status-pending-bg p-4">
+            <p className="mb-3 flex items-center gap-2 text-base font-bold text-status-pending sm:text-lg">
+              <AlertTriangle size={19} /> 반드시 지켜야 하는 순서
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              {ORDER_STEPS.map((step, index) => (
+                <div key={step} className="flex items-center gap-2">
+                  <span className="flex items-center gap-1.5 rounded-full bg-white px-3.5 py-2 text-sm font-bold text-ink ring-1 ring-black/[0.06] sm:text-base">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-status-pending text-[11px] font-bold text-white">{index + 1}</span>
+                    {step}
+                  </span>
+                  {index < ORDER_STEPS.length - 1 && <ArrowRight size={16} className="shrink-0 text-status-pending" />}
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-sm font-bold text-status-pending sm:text-base">순서를 반드시 지켜주세요.</p>
+          </section>
+
+          <section className="rounded-2xl bg-status-rejected-bg p-4">
+            <p className="mb-3 flex items-center gap-2 text-base font-bold text-status-rejected sm:text-lg">
+              <AlertTriangle size={19} /> 자주 하는 실수
+            </p>
+            <ul className="space-y-2">
+              {COMMON_MISTAKES.map((mistake) => (
+                <li key={mistake} className="flex gap-2 text-sm font-semibold text-status-rejected sm:text-base">
+                  <span>•</span>{mistake}
+                </li>
+              ))}
+            </ul>
+          </section>
+        </div>
+      )}
+    </Card>
+  );
 }
 
 export function PrepaidManagementPage() {
@@ -200,6 +332,8 @@ export function PrepaidManagementPage() {
           </label>
           {canEdit && <Button size="lg" onClick={openCreate}><span className="flex items-center gap-1.5"><Plus size={18} /> 신규 선결제</span></Button>}
         </div>
+
+        <UsageManualCard />
 
         {filtered.length === 0 ? (
           <Card><EmptyState icon="💳" title={query ? '검색 결과가 없습니다' : '등록된 선결제가 없습니다'} /></Card>
