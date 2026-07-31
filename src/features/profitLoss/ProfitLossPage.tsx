@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Copy, TrendingDown, TrendingUp } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Copy, Pencil, Plus, Trash2, TrendingDown, TrendingUp } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { Card } from '@/components/common/Card';
 import { Button } from '@/components/common/Button';
-import { Textarea } from '@/components/common/Input';
+import { Input, Textarea } from '@/components/common/Input';
+import { Modal } from '@/components/common/Modal';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { Spinner } from '@/components/common/Spinner';
 import { useToast } from '@/components/common/Toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -112,7 +114,7 @@ function Trend({ current, previous }: { current: number; previous: number }) {
   );
 }
 
-function MoneyInput({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+function MoneyInput({ value, onChange, disabled }: { value: number; onChange: (value: number) => void; disabled?: boolean }) {
   return (
     <div className="relative">
       <input
@@ -120,10 +122,61 @@ function MoneyInput({ value, onChange }: { value: number; onChange: (value: numb
         value={value ? value.toLocaleString('ko-KR') : ''}
         onChange={(event) => onChange(Number(event.target.value.replace(/\D/g, '')) || 0)}
         placeholder="0"
-        className="min-h-11 w-full rounded-xl bg-brand-beige-light px-3 pr-8 text-right text-sm font-bold text-ink outline-none focus:ring-2 focus:ring-brand-red/30"
+        disabled={disabled}
+        className={`min-h-11 w-full rounded-xl bg-brand-beige-light px-3 pr-8 text-right text-sm font-bold text-ink outline-none focus:ring-2 focus:ring-brand-red/30 ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
       />
       <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-ink-faint">원</span>
     </div>
+  );
+}
+
+function CustomItemGrid({
+  values,
+  defaultKeys,
+  canEdit,
+  onChange,
+  onEditItem,
+  onDeleteItem,
+}: {
+  values: AmountMap;
+  defaultKeys: string[];
+  canEdit: boolean;
+  onChange: (key: string, value: number) => void;
+  onEditItem: (key: string) => void;
+  onDeleteItem: (key: string) => void;
+}) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      {Object.entries(values).map(([label, value]) => {
+        const isCustom = !defaultKeys.includes(label);
+        return (
+          <div key={label}>
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+              <span className="text-xs font-semibold text-ink-soft">{label}</span>
+              {isCustom && canEdit && (
+                <span className="flex items-center gap-2">
+                  <button type="button" onClick={() => onEditItem(label)} className="text-ink-faint hover:text-brand-red">
+                    <Pencil size={13} />
+                  </button>
+                  <button type="button" onClick={() => onDeleteItem(label)} className="text-ink-faint hover:text-status-rejected">
+                    <Trash2 size={13} />
+                  </button>
+                </span>
+              )}
+            </div>
+            <MoneyInput value={value} onChange={(next) => onChange(label, next)} disabled={isCustom && !canEdit} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function AddItemButton({ onClick }: { onClick: () => void }) {
+  return (
+    <Button variant="secondary" size="sm" fullWidth className="mt-4" onClick={onClick}>
+      <span className="flex items-center justify-center gap-1.5"><Plus size={14} /> 항목 추가</span>
+    </Button>
   );
 }
 
@@ -132,13 +185,23 @@ function ExpenseSection({
   values,
   sales,
   previousTotal,
+  defaultKeys,
+  canEdit,
   onChange,
+  onAddItem,
+  onEditItem,
+  onDeleteItem,
 }: {
   title: string;
   values: AmountMap;
   sales: number;
   previousTotal: number;
+  defaultKeys: string[];
+  canEdit: boolean;
   onChange: (key: string, value: number) => void;
+  onAddItem: () => void;
+  onEditItem: (key: string) => void;
+  onDeleteItem: (key: string) => void;
 }) {
   const total = sum(values);
   return (
@@ -153,26 +216,33 @@ function ExpenseSection({
           <p className="text-xs font-semibold text-ink-faint">매출 대비 {ratioText(percent(total, sales))}</p>
         </div>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {Object.entries(values).map(([label, value]) => (
-          <label key={label}>
-            <span className="mb-1.5 block text-xs font-semibold text-ink-soft">{label}</span>
-            <MoneyInput value={value} onChange={(next) => onChange(label, next)} />
-          </label>
-        ))}
-      </div>
+      <CustomItemGrid values={values} defaultKeys={defaultKeys} canEdit={canEdit} onChange={onChange} onEditItem={onEditItem} onDeleteItem={onDeleteItem} />
+      {canEdit && <AddItemButton onClick={onAddItem} />}
     </Card>
   );
 }
 
+type SectionField = 'food' | 'drinks' | 'labor' | 'ads' | 'operations' | 'fixedCosts';
+
+interface ItemModalState {
+  field: SectionField;
+  mode: 'add' | 'edit';
+  originalKey?: string;
+}
+
 export function ProfitLossPage() {
-  const { session } = useAuth();
+  const { session, effectiveRole } = useAuth();
   const { showToast } = useToast();
+  const isAdmin = effectiveRole === 'admin';
   const [selectedMonth, setSelectedMonth] = useState(monthKey(new Date()));
   const [allData, setAllData] = useState<Record<string, MonthlyProfitLoss>>({});
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [itemModal, setItemModal] = useState<ItemModalState | null>(null);
+  const [itemName, setItemName] = useState('');
+  const [itemAmount, setItemAmount] = useState(0);
+  const [deleteItem, setDeleteItem] = useState<{ field: SectionField; key: string } | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const employeeNames = employees.map((employee) => employee.name);
   const current = normalizeMonth(allData[selectedMonth], employeeNames);
@@ -274,8 +344,46 @@ export function ProfitLossPage() {
     }));
   };
 
-  const updateMap = (field: 'food' | 'drinks' | 'labor' | 'ads' | 'operations' | 'fixedCosts', key: string, value: number) => {
+  const updateMap = (field: SectionField, key: string, value: number) => {
     update({ [field]: { ...current[field], [key]: value } });
+  };
+
+  const openAddItem = (field: SectionField) => {
+    setItemName('');
+    setItemAmount(0);
+    setItemModal({ field, mode: 'add' });
+  };
+
+  const openEditItem = (field: SectionField, key: string) => {
+    setItemName(key);
+    setItemAmount(current[field][key] ?? 0);
+    setItemModal({ field, mode: 'edit', originalKey: key });
+  };
+
+  const saveItem = () => {
+    if (!itemModal) return;
+    const name = itemName.trim();
+    if (!name) return;
+    const { field, mode, originalKey } = itemModal;
+    const existingKeys = Object.keys(current[field]);
+    const collides = mode === 'add' ? existingKeys.includes(name) : name !== originalKey && existingKeys.includes(name);
+    if (collides) {
+      showToast('이미 같은 이름의 항목이 있습니다.', 'error');
+      return;
+    }
+    const map = { ...current[field] };
+    if (mode === 'edit' && originalKey && originalKey !== name) delete map[originalKey];
+    map[name] = itemAmount;
+    update({ [field]: map });
+    setItemModal(null);
+  };
+
+  const confirmDeleteItem = () => {
+    if (!deleteItem) return;
+    const map = { ...current[deleteItem.field] };
+    delete map[deleteItem.key];
+    update({ [deleteItem.field]: map });
+    setDeleteItem(null);
   };
 
   const [year, month] = selectedMonth.split('-').map(Number);
@@ -337,8 +445,18 @@ export function ProfitLossPage() {
           <div className="mt-5"><MoneyInput value={current.sales} onChange={(sales) => update({ sales })} /></div>
         </Card>
 
-        <ExpenseSection title="식자재" values={current.food} sales={current.sales} previousTotal={previousTotals.food} onChange={(key, value) => updateMap('food', key, value)} />
-        <ExpenseSection title="주류·음료" values={current.drinks} sales={current.sales} previousTotal={previousTotals.drinks} onChange={(key, value) => updateMap('drinks', key, value)} />
+        <ExpenseSection
+          title="식자재" values={current.food} sales={current.sales} previousTotal={previousTotals.food}
+          defaultKeys={FOOD} canEdit={isAdmin}
+          onChange={(key, value) => updateMap('food', key, value)}
+          onAddItem={() => openAddItem('food')} onEditItem={(key) => openEditItem('food', key)} onDeleteItem={(key) => setDeleteItem({ field: 'food', key })}
+        />
+        <ExpenseSection
+          title="주류·음료" values={current.drinks} sales={current.sales} previousTotal={previousTotals.drinks}
+          defaultKeys={DRINKS} canEdit={isAdmin}
+          onChange={(key, value) => updateMap('drinks', key, value)}
+          onAddItem={() => openAddItem('drinks')} onEditItem={(key) => openEditItem('drinks', key)} onDeleteItem={(key) => setDeleteItem({ field: 'drinks', key })}
+        />
 
         <Card>
           <div className="mb-5 flex items-start justify-between">
@@ -351,14 +469,35 @@ export function ProfitLossPage() {
           </div>
           <div className="my-5 h-px bg-black/[0.05]" />
           <p className="mb-3 text-xs font-bold text-ink-faint">파트타임</p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {Object.keys(current.labor).filter((name) => !FULL_TIME.includes(name)).map((name) => <label key={name}><span className="mb-1.5 block text-xs font-semibold text-ink-soft">{name}</span><MoneyInput value={current.labor[name] ?? 0} onChange={(value) => updateMap('labor', name, value)} /></label>)}
-          </div>
+          <CustomItemGrid
+            values={Object.fromEntries(Object.entries(current.labor).filter(([name]) => !FULL_TIME.includes(name)))}
+            defaultKeys={[...FULL_TIME, ...employeeNames]}
+            canEdit={isAdmin}
+            onChange={(key, value) => updateMap('labor', key, value)}
+            onEditItem={(key) => openEditItem('labor', key)}
+            onDeleteItem={(key) => setDeleteItem({ field: 'labor', key })}
+          />
+          {isAdmin && <AddItemButton onClick={() => openAddItem('labor')} />}
         </Card>
 
-        <ExpenseSection title="광고비" values={current.ads} sales={current.sales} previousTotal={previousTotals.ads} onChange={(key, value) => updateMap('ads', key, value)} />
-        <ExpenseSection title="운영비" values={current.operations} sales={current.sales} previousTotal={previousTotals.operations} onChange={(key, value) => updateMap('operations', key, value)} />
-        <ExpenseSection title="고정비" values={current.fixedCosts} sales={current.sales} previousTotal={previousTotals.fixedCosts} onChange={(key, value) => updateMap('fixedCosts', key, value)} />
+        <ExpenseSection
+          title="광고비" values={current.ads} sales={current.sales} previousTotal={previousTotals.ads}
+          defaultKeys={ADS} canEdit={isAdmin}
+          onChange={(key, value) => updateMap('ads', key, value)}
+          onAddItem={() => openAddItem('ads')} onEditItem={(key) => openEditItem('ads', key)} onDeleteItem={(key) => setDeleteItem({ field: 'ads', key })}
+        />
+        <ExpenseSection
+          title="운영비" values={current.operations} sales={current.sales} previousTotal={previousTotals.operations}
+          defaultKeys={OPERATIONS} canEdit={isAdmin}
+          onChange={(key, value) => updateMap('operations', key, value)}
+          onAddItem={() => openAddItem('operations')} onEditItem={(key) => openEditItem('operations', key)} onDeleteItem={(key) => setDeleteItem({ field: 'operations', key })}
+        />
+        <ExpenseSection
+          title="고정비" values={current.fixedCosts} sales={current.sales} previousTotal={previousTotals.fixedCosts}
+          defaultKeys={FIXED_COSTS} canEdit={isAdmin}
+          onChange={(key, value) => updateMap('fixedCosts', key, value)}
+          onAddItem={() => openAddItem('fixedCosts')} onEditItem={(key) => openEditItem('fixedCosts', key)} onDeleteItem={(key) => setDeleteItem({ field: 'fixedCosts', key })}
+        />
 
         <Card>
           <div className="flex items-center justify-between gap-3"><h2 className="text-lg font-bold text-ink">빼놓은 세금</h2><p className="text-xl font-bold text-ink">{won(current.taxReserve)}</p></div>
@@ -372,6 +511,30 @@ export function ProfitLossPage() {
         </Card>
       </div>
       )}
+
+      <Modal
+        open={!!itemModal}
+        onClose={() => setItemModal(null)}
+        title={itemModal?.mode === 'edit' ? '항목 수정' : '항목 추가'}
+        footer={<Button fullWidth onClick={saveItem} disabled={!itemName.trim()}>저장</Button>}
+      >
+        <div className="pb-5">
+          <Input label="항목명" value={itemName} onChange={(event) => setItemName(event.target.value)} placeholder="예: 유튜브 광고" />
+          <label>
+            <span className="mb-2 block text-[13px] font-semibold text-ink-soft">금액</span>
+            <MoneyInput value={itemAmount} onChange={setItemAmount} />
+          </label>
+        </div>
+      </Modal>
+
+      <ConfirmDialog
+        open={!!deleteItem}
+        title="정말 삭제하시겠습니까?"
+        confirmLabel="삭제"
+        danger
+        onConfirm={confirmDeleteItem}
+        onClose={() => setDeleteItem(null)}
+      />
     </Layout>
   );
 }
