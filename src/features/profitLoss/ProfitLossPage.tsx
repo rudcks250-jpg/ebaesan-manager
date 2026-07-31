@@ -243,6 +243,8 @@ export function ProfitLossPage() {
   const [itemName, setItemName] = useState('');
   const [itemAmount, setItemAmount] = useState(0);
   const [deleteItem, setDeleteItem] = useState<{ field: SectionField; key: string } | null>(null);
+  const [taxModalOpen, setTaxModalOpen] = useState(false);
+  const [taxAmount, setTaxAmount] = useState(0);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const employeeNames = employees.map((employee) => employee.name);
   const current = normalizeMonth(allData[selectedMonth], employeeNames);
@@ -321,8 +323,10 @@ export function ProfitLossPage() {
     const fixedCosts = sum(current.fixedCosts);
     const cost = food + drinks;
     const operatingProfit = current.sales - cost - labor - ads - operations - fixedCosts;
-    const netProfit = operatingProfit - current.taxReserve;
-    return { food, drinks, labor, ads, operations, fixedCosts, cost, operatingProfit, netProfit };
+    // 세금 적립금은 현금 관리 개념이라 영업이익/순이익 계산에서 제외합니다.
+    const netProfit = operatingProfit;
+    const cashAvailable = operatingProfit - current.taxReserve;
+    return { food, drinks, labor, ads, operations, fixedCosts, cost, operatingProfit, netProfit, cashAvailable };
   }, [current]);
 
   const previousTotals = useMemo(() => {
@@ -334,7 +338,7 @@ export function ProfitLossPage() {
     const fixedCosts = sum(previous.fixedCosts);
     const cost = food + drinks;
     const operatingProfit = previous.sales - cost - labor - ads - operations - fixedCosts;
-    return { food, drinks, labor, ads, operations, fixedCosts, operatingProfit, netProfit: operatingProfit - previous.taxReserve };
+    return { food, drinks, labor, ads, operations, fixedCosts, operatingProfit, netProfit: operatingProfit, cashAvailable: operatingProfit - previous.taxReserve };
   }, [previous]);
 
   const update = (patch: Partial<MonthlyProfitLoss>) => {
@@ -386,6 +390,16 @@ export function ProfitLossPage() {
     setDeleteItem(null);
   };
 
+  const openTaxModal = () => {
+    setTaxAmount(current.taxReserve);
+    setTaxModalOpen(true);
+  };
+
+  const saveTax = () => {
+    update({ taxReserve: taxAmount });
+    setTaxModalOpen(false);
+  };
+
   const [year, month] = selectedMonth.split('-').map(Number);
   const cards = [
     { label: '영업이익', value: totals.operatingProfit, previous: previousTotals.operatingProfit },
@@ -432,6 +446,21 @@ export function ProfitLossPage() {
               {card.previous !== undefined && <Trend current={card.value} previous={card.previous} />}
             </Card>
           ))}
+
+          <Card
+            className={isAdmin ? 'cursor-pointer press-scale' : ''}
+            onClick={isAdmin ? openTaxModal : undefined}
+          >
+            <p className="text-xs font-semibold text-ink-faint">세금 적립금</p>
+            <p className="mt-2 text-2xl font-bold text-ink">{won(current.taxReserve)}</p>
+            {isAdmin && <span className="text-xs font-semibold text-brand-red">탭하여 수정</span>}
+          </Card>
+
+          <Card>
+            <p className="text-xs font-semibold text-ink-faint">실제 사용 가능 현금</p>
+            <p className={`mt-2 text-2xl font-bold ${totals.cashAvailable >= 0 ? 'text-ink' : 'text-red-500'}`}>{won(totals.cashAvailable)}</p>
+            <Trend current={totals.cashAvailable} previous={previousTotals.cashAvailable} />
+          </Card>
         </div>
 
         <Card>
@@ -500,11 +529,6 @@ export function ProfitLossPage() {
         />
 
         <Card>
-          <div className="flex items-center justify-between gap-3"><h2 className="text-lg font-bold text-ink">빼놓은 세금</h2><p className="text-xl font-bold text-ink">{won(current.taxReserve)}</p></div>
-          <div className="mt-5"><MoneyInput value={current.taxReserve} onChange={(taxReserve) => update({ taxReserve })} /></div>
-        </Card>
-
-        <Card>
           <h2 className="mb-4 text-lg font-bold text-ink">관리자 메모</h2>
           <Textarea value={current.memo} onChange={(event) => update({ memo: event.target.value })} placeholder={`${year}년 ${month}월 특이사항을 입력하세요.`} />
           <p className="text-right text-xs text-ink-faint">입력 내용은 월별로 자동 저장됩니다.</p>
@@ -523,6 +547,21 @@ export function ProfitLossPage() {
           <label>
             <span className="mb-2 block text-[13px] font-semibold text-ink-soft">금액</span>
             <MoneyInput value={itemAmount} onChange={setItemAmount} />
+          </label>
+        </div>
+      </Modal>
+
+      <Modal
+        open={taxModalOpen}
+        onClose={() => setTaxModalOpen(false)}
+        title="세금 적립금"
+        footer={<Button fullWidth onClick={saveTax}>저장</Button>}
+      >
+        <div className="pb-5">
+          <p className="mb-4 text-sm text-ink-soft">세금을 대비해 따로 빼놓는 금액입니다. 비용이나 순이익 계산에는 포함되지 않습니다.</p>
+          <label>
+            <span className="mb-2 block text-[13px] font-semibold text-ink-soft">금액</span>
+            <MoneyInput value={taxAmount} onChange={setTaxAmount} />
           </label>
         </div>
       </Modal>
