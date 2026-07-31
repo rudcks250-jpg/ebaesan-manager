@@ -323,10 +323,10 @@ export function ProfitLossPage() {
     const fixedCosts = sum(current.fixedCosts);
     const cost = food + drinks;
     const operatingProfit = current.sales - cost - labor - ads - operations - fixedCosts;
-    // 세금 적립금은 현금 관리 개념이라 영업이익/순이익 계산에서 제외합니다.
-    const netProfit = operatingProfit;
-    const cashAvailable = operatingProfit - current.taxReserve;
-    return { food, drinks, labor, ads, operations, fixedCosts, cost, operatingProfit, netProfit, cashAvailable };
+    // 전월 세금대비금(당월에 입력한 taxReserve)은 지난달에 미리 적립해둔 세금 예비금이 풀리는 개념이라 영업이익에 더합니다.
+    const finalOperatingProfit = operatingProfit + current.taxReserve;
+    const netProfit = finalOperatingProfit;
+    return { food, drinks, labor, ads, operations, fixedCosts, cost, operatingProfit, finalOperatingProfit, netProfit };
   }, [current]);
 
   const previousTotals = useMemo(() => {
@@ -338,7 +338,8 @@ export function ProfitLossPage() {
     const fixedCosts = sum(previous.fixedCosts);
     const cost = food + drinks;
     const operatingProfit = previous.sales - cost - labor - ads - operations - fixedCosts;
-    return { food, drinks, labor, ads, operations, fixedCosts, operatingProfit, netProfit: operatingProfit, cashAvailable: operatingProfit - previous.taxReserve };
+    const finalOperatingProfit = operatingProfit + previous.taxReserve;
+    return { food, drinks, labor, ads, operations, fixedCosts, operatingProfit, finalOperatingProfit, netProfit: finalOperatingProfit };
   }, [previous]);
 
   const update = (patch: Partial<MonthlyProfitLoss>) => {
@@ -402,8 +403,8 @@ export function ProfitLossPage() {
 
   const [year, month] = selectedMonth.split('-').map(Number);
   const cards = [
-    { label: '영업이익', value: totals.operatingProfit, previous: previousTotals.operatingProfit },
-    { label: '영업이익률', value: percent(totals.operatingProfit, current.sales), previous: percent(previousTotals.operatingProfit, previous.sales), percent: true },
+    { label: '영업이익', value: totals.finalOperatingProfit, previous: previousTotals.finalOperatingProfit },
+    { label: '영업이익률', value: percent(totals.finalOperatingProfit, current.sales), previous: percent(previousTotals.finalOperatingProfit, previous.sales), percent: true },
     { label: '원가율', value: percent(totals.cost, current.sales), previous: percent(previousTotals.food + previousTotals.drinks, previous.sales), percent: true },
     { label: '인건비율', value: percent(totals.labor, current.sales), previous: percent(previousTotals.labor, previous.sales), percent: true },
     { label: '광고비율', value: percent(totals.ads, current.sales), previous: percent(previousTotals.ads, previous.sales), percent: true },
@@ -446,22 +447,21 @@ export function ProfitLossPage() {
               {card.previous !== undefined && <Trend current={card.value} previous={card.previous} />}
             </Card>
           ))}
-
-          <Card
-            className={isAdmin ? 'cursor-pointer press-scale' : ''}
-            onClick={isAdmin ? openTaxModal : undefined}
-          >
-            <p className="text-xs font-semibold text-ink-faint">세금 적립금</p>
-            <p className="mt-2 text-2xl font-bold text-ink">{won(current.taxReserve)}</p>
-            {isAdmin && <span className="text-xs font-semibold text-brand-red">탭하여 수정</span>}
-          </Card>
-
-          <Card>
-            <p className="text-xs font-semibold text-ink-faint">실제 사용 가능 현금</p>
-            <p className={`mt-2 text-2xl font-bold ${totals.cashAvailable >= 0 ? 'text-ink' : 'text-red-500'}`}>{won(totals.cashAvailable)}</p>
-            <Trend current={totals.cashAvailable} previous={previousTotals.cashAvailable} />
-          </Card>
         </div>
+
+        <Card
+          className={isAdmin ? 'cursor-pointer press-scale' : ''}
+          onClick={isAdmin ? openTaxModal : undefined}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold text-ink-faint">전월 세금대비금</p>
+              <p className="mt-2 text-2xl font-bold text-ink">{won(current.taxReserve)}</p>
+            </div>
+            {isAdmin && <span className="shrink-0 text-xs font-semibold text-brand-red">탭하여 수정</span>}
+          </div>
+          <p className="mt-2 text-xs text-ink-faint">지난달에 미리 적립해둔 세금 예비금입니다.</p>
+        </Card>
 
         <Card>
           <div className="flex items-start justify-between gap-3">
@@ -554,11 +554,11 @@ export function ProfitLossPage() {
       <Modal
         open={taxModalOpen}
         onClose={() => setTaxModalOpen(false)}
-        title="세금 적립금"
+        title="전월 세금대비금"
         footer={<Button fullWidth onClick={saveTax}>저장</Button>}
       >
         <div className="pb-5">
-          <p className="mb-4 text-sm text-ink-soft">세금을 대비해 따로 빼놓는 금액입니다. 비용이나 순이익 계산에는 포함되지 않습니다.</p>
+          <p className="mb-4 text-sm text-ink-soft">지난달에 미리 적립해둔 세금 예비금입니다. 이번 달 영업이익에 더해집니다.</p>
           <label>
             <span className="mb-2 block text-[13px] font-semibold text-ink-soft">금액</span>
             <MoneyInput value={taxAmount} onChange={setTaxAmount} />
