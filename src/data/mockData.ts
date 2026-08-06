@@ -377,6 +377,16 @@ export const seedVendors: Vendor[] = [
     createdAt: now,
     updatedAt: now,
   },
+  {
+    id: 'vendor_fixed_lpg',
+    name: 'LPG 가스',
+    contactName: '',
+    phone: '',
+    type: 'fixed',
+    fixedOrder: { itemName: '가스', quantity: 1, unit: '통' },
+    createdAt: now,
+    updatedAt: now,
+  },
 ];
 
 // ---------------------------------------------------------

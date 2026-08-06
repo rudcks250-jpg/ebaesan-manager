@@ -33,6 +33,16 @@ export const orderHistoryRepository = {
     return data ? mapCompletion(data) : undefined;
   },
 
+  async findAll(vendorId: string): Promise<OrderCompletion[]> {
+    const { data, error } = await supabase
+      .from('order_completions')
+      .select('*')
+      .eq('vendor_id', vendorId)
+      .order('completed_at', { ascending: false });
+    if (error) throw error;
+    return (data ?? []).map(mapCompletion);
+  },
+
   async record(input: {
     vendorId: string;
     vendorName: string;
@@ -64,6 +74,14 @@ export const orderHistoryRepository = {
       .eq('vendor_id', vendorId)
       .gte('completed_at', start.toISOString())
       .lt('completed_at', end.toISOString());
+    if (error) throw error;
+  },
+
+  async deleteById(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('order_completions')
+      .delete()
+      .eq('id', id);
     if (error) throw error;
   },
 };

@@ -10,6 +10,7 @@ import {
   MessageCircle,
   Smartphone,
   RotateCcw,
+  History,
 } from 'lucide-react';
 import { Card } from '@/components/common/Card';
 import { Modal } from '@/components/common/Modal';
@@ -129,6 +130,9 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
   const [completing, setCompleting] = useState(false);
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
   const [fallbackMessage, setFallbackMessage] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [orderHistory, setOrderHistory] = useState<OrderCompletion[]>([]);
   const [selections, setSelections] = useState<ItemSelectionMap>(() =>
     Object.fromEntries((vendor.items ?? []).map((item) => [item.id, { checked: false, qty: 1 }]))
   );
@@ -138,8 +142,10 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
   const phoneDisplay = vendorService.formatPhoneDisplay(vendor.phone);
   const selectedCount = Object.values(selections).filter((s) => s.checked).length;
   const isKimchiVendor = vendor.id === 'vendor_fixed_kimchi';
+  const isLpgVendor = vendor.id === 'vendor_fixed_lpg';
+  const showsDetailedRecentOrder = isKimchiVendor || isLpgVendor;
   const isSharedCompletionVendor =
-    isKimchiVendor || vendor.id === 'vendor_fixed_charcoal';
+    showsDetailedRecentOrder || vendor.id === 'vendor_fixed_charcoal';
   const [recentOrder, setRecentOrder] = useState<OrderCompletion | undefined>(() =>
     vendor.lastOrderAt
       ? {
@@ -215,7 +221,7 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
   const copyOrderMessage = async (message: string): Promise<boolean> => {
     const ok = await copyText(message);
     if (ok) {
-      showToast('발주 내용이 복사되었습니다.');
+      showToast(isLpgVendor ? '문자 내용이 복사되었습니다.' : '발주 내용이 복사되었습니다.');
     } else {
       showToast('복사에 실패했어요. 아래 내용을 직접 복사해주세요.');
       setFallbackMessage(message);
@@ -267,7 +273,6 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
     if (completing || !session) return;
     setCompleting(true);
     const completedAt = new Date().toISOString();
-    vendorService.markOrdered(vendor.id, session.name);
     const localCompletion: OrderCompletion = {
       id: 'local',
       vendorId: vendor.id,
@@ -276,9 +281,6 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
       completedByName: session.name,
       completedAt,
     };
-    if (isSharedCompletionVendor) setRecentOrder(localCompletion);
-    showToast('발주 완료로 표시했습니다.');
-    onChanged();
     try {
       const saved = await orderHistoryRepository.record({
         vendorId: vendor.id,
@@ -286,9 +288,21 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
         completedBy: session.employeeId,
         completedByName: session.name,
       });
+      vendorService.markOrdered(vendor.id, session.name);
       if (isSharedCompletionVendor) setRecentOrder(saved);
+      if (isLpgVendor) setOrderHistory((history) => [saved, ...history.filter((item) => item.id !== saved.id)]);
+      showToast('발주 완료로 표시했습니다.');
+      onChanged();
     } catch {
-      // DB 마이그레이션 적용 전에도 로컬 완료 상태와 즉시 갱신은 유지합니다.
+      if (isLpgVendor) {
+        showToast('발주 기록 저장에 실패했습니다.', 'error');
+      } else {
+        // 기존 거래처는 DB 마이그레이션 적용 전의 로컬 완료 동작을 유지합니다.
+        vendorService.markOrdered(vendor.id, session.name);
+        if (isSharedCompletionVendor) setRecentOrder(localCompletion);
+        showToast('발주 완료로 표시했습니다.');
+        onChanged();
+      }
     } finally {
       setCompleting(false);
     }
@@ -298,11 +312,18 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
     if (completing || !session) return;
     setCompleting(true);
     try {
-      await orderHistoryRepository.deleteToday(vendor.id);
+      if (isLpgVendor && recentOrder && recentOrder.id !== 'local') {
+        await orderHistoryRepository.deleteById(recentOrder.id);
+      } else {
+        await orderHistoryRepository.deleteToday(vendor.id);
+      }
       vendorService.cancelTodayOrder(vendor.id);
       if (isSharedCompletionVendor) {
         const latest = await orderHistoryRepository.findLatest(vendor.id);
         setRecentOrder(latest);
+        if (isLpgVendor) {
+          setOrderHistory((history) => history.filter((item) => item.id !== recentOrder?.id));
+        }
       }
       showToast('오늘 발주 완료를 취소했습니다.');
       onChanged();
@@ -311,6 +332,49 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
     } finally {
       setCompleting(false);
     }
+  };
+
+  const handleOpenHistory = async () => {
+    setHistoryOpen(true);
+    setHistoryLoading(true);
+    try {
+      setOrderHistory(await orderHistoryRepository.findAll(vendor.id));
+    } catch {
+      showToast('발주 이력을 불러오지 못했습니다.', 'error');
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const formatHistoryDate = (iso: string) => {
+    const date = new Date(iso);
+    const dateText = new Intl.DateTimeFormat('ko-KR', {
+      timeZone: 'Asia/Seoul',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(date).replace(/\. /g, '.').replace(/\.$/, '');
+    const timeText = new Intl.DateTimeFormat('ko-KR', {
+      timeZone: 'Asia/Seoul',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(date);
+    return `${dateText} ${timeText}`;
+  };
+
+  const formatLpgRecentDate = (iso: string) => {
+    const date = new Date(iso);
+    const parts = new Intl.DateTimeFormat('ko-KR', {
+      timeZone: 'Asia/Seoul',
+      month: 'numeric',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(date);
+    const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? '';
+    return `${value('month')}월 ${value('day')}일 ${value('hour')}:${value('minute')}`;
   };
 
   return (
@@ -342,22 +406,26 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
         </button>
       </div>
 
-      {!isKimchiVendor && (
+      {!showsDetailedRecentOrder && (
         <p className="text-xs text-ink-faint">마지막 발주 · {lastOrderText ?? '기록 없음'}</p>
       )}
 
-      {isKimchiVendor && (
+      {showsDetailedRecentOrder && (
         <div className="rounded-[20px] bg-[#F7F9FC] p-4 ring-1 ring-black/[0.04]">
           <p className="text-[11px] font-semibold text-ink-faint">최근 발주</p>
           {recentOrder ? (
             <div className="mt-2 flex items-end justify-between gap-3">
               <div>
-                <p className="text-sm font-bold text-ink">
-                  {vendorService.formatLastOrder(recentOrder.completedAt)}
-                </p>
-                <p className="mt-1 text-sm font-semibold text-ink-soft">
-                  발주자 · {recentOrder.completedByName}
-                </p>
+                {isLpgVendor ? (
+                  <p className="text-sm font-bold text-ink">
+                    {formatLpgRecentDate(recentOrder.completedAt)} · {recentOrder.completedByName} 발주 완료
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-sm font-bold text-ink">{vendorService.formatLastOrder(recentOrder.completedAt)}</p>
+                    <p className="mt-1 text-sm font-semibold text-ink-soft">발주자 · {recentOrder.completedByName}</p>
+                  </>
+                )}
               </div>
               <span className="shrink-0 rounded-full bg-status-working-bg px-2.5 py-1 text-[10px] font-bold text-status-working">
                 발주 완료
@@ -370,12 +438,18 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
       )}
 
       {/* 직접 메시지형 거래처는 상품/수량/고정발주 영역을 렌더링하지 않습니다. */}
-      {directOrderMessage && (
+      {isLpgVendor && (
+        <div className="rounded-2xl bg-status-working-bg px-4 py-3.5">
+          <p className="text-xs text-ink-faint mb-0.5">문자 발주</p>
+          <p className="font-bold text-ink tabular-num">가스 1통</p>
+        </div>
+      )}
+      {directOrderMessage && !isLpgVendor && (
         <div className="rounded-2xl bg-brand-beige-light px-4 py-4 text-[14px] font-medium leading-relaxed text-ink">
           {directOrderMessage}
         </div>
       )}
-      {!directOrderMessage && (vendor.type === 'quantity' ? (
+      {!directOrderMessage && !isLpgVendor && (vendor.type === 'quantity' ? (
         <div>
           <button
             onClick={() => setExpanded((v) => !v)}
@@ -456,6 +530,15 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
         </div>
       ))}
 
+      {isLpgVendor ? (
+        <button
+          onClick={handleCopy}
+          className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-brand-red-light px-3 py-3.5 text-sm font-bold text-brand-red press-scale"
+        >
+          <Copy size={19} />
+          <span>문자 내용 복사</span>
+        </button>
+      ) : (
       <div className="grid grid-cols-2 gap-2 pt-1">
         {usesKakaoShare ? (
           <button
@@ -482,6 +565,7 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
           <span>내용 복사</span>
         </button>
       </div>
+      )}
 
       <button
         onClick={ordered ? () => setCancelConfirmOpen(true) : handleMarkOrdered}
@@ -492,13 +576,25 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
       >
         {ordered ? <RotateCcw size={18} /> : <CheckCircle2 size={18} />}
         <span>
-          {completing ? '처리 중...' : ordered ? '✔ 발주 완료 (취소)' : '발주 완료'}
+          {completing ? '처리 중...' : ordered ? (isLpgVendor ? '발주 완료 취소' : '✔ 발주 완료 (취소)') : '발주 완료'}
         </span>
       </button>
 
-      <p className="text-[11px] text-ink-faint text-center -mt-1">
-        {vendor.contactName} · {phoneDisplay}
-      </p>
+      {isLpgVendor && (
+        <button
+          onClick={handleOpenHistory}
+          className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-black/[0.07] bg-white px-3 py-3 text-sm font-bold text-ink-soft press-scale"
+        >
+          <History size={18} />
+          발주 이력 보기
+        </button>
+      )}
+
+      {(vendor.contactName || phoneDisplay) && (
+        <p className="text-[11px] text-ink-faint text-center -mt-1">
+          {[vendor.contactName, phoneDisplay].filter(Boolean).join(' · ')}
+        </p>
+      )}
 
       {editOpen && <VendorEditModal vendor={vendor} onClose={() => setEditOpen(false)} onSaved={onChanged} />}
 
@@ -522,6 +618,25 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
             className="w-full rounded-2xl border border-border p-4 text-sm text-ink mb-4"
             onFocus={(e) => e.currentTarget.select()}
           />
+        </Modal>
+      )}
+
+      {isLpgVendor && historyOpen && (
+        <Modal open onClose={() => setHistoryOpen(false)} title="LPG 가스 발주 이력">
+          {historyLoading ? (
+            <p className="py-8 text-center text-sm text-ink-faint">불러오는 중...</p>
+          ) : orderHistory.length > 0 ? (
+            <div className="max-h-[55vh] space-y-2 overflow-y-auto pr-1">
+              {orderHistory.map((item) => (
+                <div key={item.id} className="rounded-2xl bg-brand-beige-light px-4 py-3.5">
+                  <p className="text-sm font-bold tabular-nums text-ink">{formatHistoryDate(item.completedAt)}</p>
+                  <p className="mt-1 text-sm font-semibold text-ink-soft">{item.completedByName}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="py-8 text-center text-sm font-medium text-ink-faint">아직 발주 기록이 없습니다.</p>
+          )}
         </Modal>
       )}
     </Card>
