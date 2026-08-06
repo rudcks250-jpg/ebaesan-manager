@@ -9,6 +9,12 @@ import { payrollService } from '@/services/payrollService';
 import { employeeService } from '@/services/employeeService';
 import type { Employee } from '@/data/types';
 
+function formatClockTime(value: string | null | undefined) {
+  if (!value) return '';
+  const match = value.match(/^(\d{1,2}):(\d{2})/);
+  return match ? `${match[1].padStart(2, '0')}:${match[2]}` : value;
+}
+
 export function PayrollDetailPage() {
   const { employeeId } = useParams<{ employeeId: string }>();
   const [searchParams] = useSearchParams();
@@ -96,13 +102,14 @@ export function PayrollDetailPage() {
             {calendar.map((day) => {
               const dayNum = Number(day.date.slice(-2));
               const worked = day.record?.workedMinutes != null;
+              const clockIn = formatClockTime(day.record?.clockIn);
+              const clockOut = formatClockTime(day.record?.clockOut);
               let bg = 'bg-bg';
               let text = 'text-ink-faint';
               let label = '';
               if (worked) {
                 bg = 'bg-status-working-bg';
                 text = 'text-status-working';
-                label = `${day.record!.clockIn}~${day.record!.clockOut}`;
               } else if (day.isScheduledOff) {
                 bg = 'bg-status-off-bg';
                 text = 'text-status-off';
@@ -111,12 +118,25 @@ export function PayrollDetailPage() {
               return (
                 <div
                   key={day.date}
-                  className={`aspect-square rounded-xl flex flex-col items-center justify-center gap-0.5 ${bg} ${
+                  className={`min-h-[68px] sm:aspect-square sm:min-h-0 rounded-xl flex flex-col items-center justify-center gap-1.5 px-0.5 py-2 text-center overflow-hidden ${bg} ${
                     day.isToday ? 'ring-2 ring-brand-red' : ''
                   }`}
                 >
-                  <span className={`text-xs font-bold ${day.isToday ? 'text-brand-red' : text}`}>{dayNum}</span>
-                  {label && <span className={`text-[8px] font-semibold ${text} leading-none text-center px-0.5`}>{label}</span>}
+                  <span
+                    className={`${worked ? 'text-lg sm:text-xl font-bold' : 'text-base sm:text-lg font-semibold'} leading-none ${day.isToday ? 'text-brand-red' : text}`}
+                  >
+                    {dayNum}
+                  </span>
+                  {worked && clockIn && clockOut ? (
+                    <span className={`flex flex-col sm:flex-row items-center justify-center gap-0 sm:gap-1 whitespace-nowrap text-[11px] min-[390px]:text-xs sm:text-sm font-bold leading-tight tracking-[-0.02em] ${text}`}>
+                      <span>{clockIn}</span>
+                      <span>~ {clockOut}</span>
+                    </span>
+                  ) : label ? (
+                    <span className={`whitespace-nowrap text-xs sm:text-sm font-semibold leading-tight ${text}`}>
+                      {label}
+                    </span>
+                  ) : null}
                 </div>
               );
             })}
