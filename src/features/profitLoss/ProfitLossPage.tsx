@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, ChevronLeft, ChevronRight, Copy, ImageDown, Pencil, Plus, Share2, Trash2, TrendingDown, TrendingUp, X } from 'lucide-react';
+import { Camera, ChevronLeft, ChevronRight, ImageDown, Pencil, Plus, Share2, Trash2, TrendingDown, TrendingUp, X } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { Card } from '@/components/common/Card';
 import { Button } from '@/components/common/Button';
@@ -460,13 +460,6 @@ export function ProfitLossPage() {
             <span className={`mr-3 self-center text-xs font-semibold ${saveState === 'error' ? 'text-red-500' : 'text-ink-faint'}`}>
               {saveState === 'saving' ? '저장 중…' : saveState === 'saved' ? '자동 저장됨' : saveState === 'error' ? '저장 실패' : ''}
             </span>
-            <Button size="sm" variant="secondary" onClick={() => {
-              const source = allData[shiftMonth(selectedMonth, -1)];
-              if (!source) return;
-              update({ ...structuredClone(source), memo: source.memo });
-            }} disabled={!allData[shiftMonth(selectedMonth, -1)]}>
-              <span className="flex items-center gap-1"><Copy size={14} /> 이번 달 복사</span>
-            </Button>
             <Button size="sm" variant="secondary" onClick={() => setReportOpen(true)}>
               <span className="flex items-center gap-1"><Camera size={14} /> 이번달 손익계산서 공유하기</span>
             </Button>
