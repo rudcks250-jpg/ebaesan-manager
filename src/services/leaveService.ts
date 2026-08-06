@@ -13,8 +13,19 @@ export interface CreateLeaveInput {
   leaveType: LeaveType;
 }
 
+export interface CreateLeavesInput {
+  employeeId: string;
+  requestedDates: string[];
+  reason: string;
+  leaveType: LeaveType;
+}
+
 export type CreateLeaveResult =
   | { success: true; request: LeaveRequest }
+  | { success: false; errorMessage: string };
+
+export type CreateLeavesResult =
+  | { success: true; requests: LeaveRequest[] }
   | { success: false; errorMessage: string };
 
 export const leaveService = {
@@ -36,35 +47,56 @@ export const leaveService = {
   },
 
   async create(input: CreateLeaveInput): Promise<CreateLeaveResult> {
-    if (!isNextWeek(input.requestedDate)) {
+    const result = await this.createMany({
+      employeeId: input.employeeId,
+      requestedDates: [input.requestedDate],
+      reason: input.reason,
+      leaveType: input.leaveType,
+    });
+    return result.success
+      ? { success: true, request: result.requests[0] }
+      : result;
+  },
+
+  async createMany(input: CreateLeavesInput): Promise<CreateLeavesResult> {
+    const requestedDates = [...new Set(input.requestedDates)].sort();
+    if (requestedDates.length === 0) {
+      return { success: false, errorMessage: '신청할 날짜를 선택해주세요.' };
+    }
+    if (requestedDates.some((date) => !isNextWeek(date))) {
       return { success: false, errorMessage: '휴무 신청은 다음 주 날짜에 대해서만 가능합니다.' };
     }
     if (!input.reason.trim()) {
       return { success: false, errorMessage: '휴무 사유를 입력해주세요.' };
     }
     if (input.leaveType === 'monthly') {
+      if (requestedDates.length !== 1) {
+        return { success: false, errorMessage: '월차는 한 번에 한 날짜만 신청할 수 있습니다.' };
+      }
       const employee = await employeeService.get(input.employeeId);
       if (!isMonthlyLeaveEligible(employee)) {
         return { success: false, errorMessage: '월차 신청 권한이 없습니다.' };
       }
     }
     const existing = await leaveRepository.findByEmployee(input.employeeId);
-    const duplicate = existing.find((r) => r.requestedDate === input.requestedDate && r.status !== 'rejected');
+    const duplicate = existing.find((r) => requestedDates.includes(r.requestedDate) && r.status !== 'rejected');
     if (duplicate) {
-      return { success: false, errorMessage: '이미 해당 날짜에 신청한 휴무가 있습니다.' };
+      return { success: false, errorMessage: `${duplicate.requestedDate}은(는) 이미 휴무 신청이 있습니다.` };
     }
-    if (input.leaveType === 'monthly' && activeMonthlyRequest(existing, leaveMonth(input.requestedDate))) {
+    if (input.leaveType === 'monthly' && activeMonthlyRequest(existing, leaveMonth(requestedDates[0]))) {
       return { success: false, errorMessage: '해당 월의 월차를 이미 신청하거나 사용했습니다.' };
     }
-    let request: LeaveRequest;
+    let requests: LeaveRequest[];
     try {
-      request = await leaveRepository.insert({
+      const requestGroupId = crypto.randomUUID();
+      requests = await leaveRepository.insertMany(requestedDates.map((requestedDate) => ({
         employeeId: input.employeeId,
-        requestedDate: input.requestedDate,
+        requestGroupId,
+        requestedDate,
         reason: input.reason.trim(),
         leaveType: input.leaveType,
-        status: 'pending',
-      });
+        status: 'pending' as const,
+      })));
     } catch (error) {
       const message = (error as { message?: string })?.message ?? '';
       if (message.includes('monthly') || message.includes('월차')) {
@@ -73,7 +105,7 @@ export const leaveService = {
       return { success: false, errorMessage: '휴무 신청을 저장하지 못했습니다.' };
     }
     await notificationService.dispatch().catch(() => undefined);
-    return { success: true, request };
+    return { success: true, requests };
   },
 
   async approve(id: string, adminId: string): Promise<LeaveRequest | undefined> {

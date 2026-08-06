@@ -80,6 +80,7 @@ export function rowToWorkTime(row: any): WorkTimeRecord {
 export function rowToLeave(row: any): LeaveRequest {
   return {
     id: row.id,
+    requestGroupId: row.request_group_id ?? undefined,
     employeeId: row.employee_id,
     requestedDate: row.requested_date,
     reason: row.reason ?? '',

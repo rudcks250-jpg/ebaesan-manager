@@ -71,6 +71,7 @@ export type LeaveType = 'regular' | 'monthly';
 
 export interface LeaveRequest {
   id: string;
+  requestGroupId?: string;
   employeeId: string;
   requestedDate: string; // 신청 대상 날짜 (차주 내) YYYY-MM-DD
   reason: string;

@@ -30,6 +30,7 @@ export const leaveRepository = {
       .from('leave_requests')
       .insert({
         employee_id: request.employeeId,
+        request_group_id: request.requestGroupId,
         requested_date: request.requestedDate,
         reason: request.reason,
         ...(request.leaveType === 'monthly' ? { leave_type: request.leaveType } : {}),
@@ -39,6 +40,22 @@ export const leaveRepository = {
       .single();
     if (error) throw error;
     return rowToLeave(data);
+  },
+
+  async insertMany(requests: Omit<LeaveRequest, 'id' | 'createdAt'>[]): Promise<LeaveRequest[]> {
+    const { data, error } = await supabase
+      .from('leave_requests')
+      .insert(requests.map((request) => ({
+        employee_id: request.employeeId,
+        request_group_id: request.requestGroupId,
+        requested_date: request.requestedDate,
+        reason: request.reason,
+        leave_type: request.leaveType,
+        status: request.status,
+      })))
+      .select();
+    if (error) throw error;
+    return (data ?? []).map(rowToLeave);
   },
 
   async update(id: string, patch: Partial<LeaveRequest>): Promise<LeaveRequest | undefined> {

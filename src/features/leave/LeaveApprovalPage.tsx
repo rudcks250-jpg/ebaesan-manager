@@ -20,14 +20,19 @@ import type { LeaveRequest, LeaveStatus } from '@/data/types';
 import { CalendarCheck2, CalendarRange, CheckCircle2, Clock3, XCircle } from 'lucide-react';
 import { StatCard } from '@/components/common/StatCard';
 
+interface LeaveRequestGroup {
+  key: string;
+  requests: LeaveRequest[];
+}
+
 export function LeaveApprovalPage() {
   const { session } = useAuth();
   const { showToast } = useToast();
   const [refreshKey, setRefreshKey] = useState(0);
   const [filter, setFilter] = useState<LeaveStatus | 'all'>('pending');
-  const [rejectTarget, setRejectTarget] = useState<LeaveRequest | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<LeaveRequestGroup | null>(null);
   const [rejectReason, setRejectReason] = useState('');
-  const [overwriteConfirm, setOverwriteConfirm] = useState<LeaveRequest | null>(null);
+  const [overwriteConfirm, setOverwriteConfirm] = useState<LeaveRequestGroup | null>(null);
 
   const [employees, setEmployees] = useState<Awaited<ReturnType<typeof employeeService.list>>>([]);
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
@@ -38,29 +43,49 @@ export function LeaveApprovalPage() {
   }, [refreshKey]);
 
   const filtered = filter === 'all' ? requests : requests.filter((r) => r.status === filter);
+  const groupedRequests = useMemo<LeaveRequestGroup[]>(() => {
+    const groups = new Map<string, LeaveRequest[]>();
+    filtered.forEach((request) => {
+      const key = request.requestGroupId ?? request.id;
+      groups.set(key, [...(groups.get(key) ?? []), request]);
+    });
+    return [...groups.entries()].map(([key, items]) => ({
+      key,
+      requests: items.sort((a, b) => a.requestedDate.localeCompare(b.requestedDate)),
+    }));
+  }, [filtered]);
   const monthlyEmployees = employees.filter(isMonthlyLeaveEligible);
   const monthlyHistory = useMemo(() => monthsOfYear(new Date().getFullYear()), []);
 
   const nameOf = (employeeId: string) => employees.find((e) => e.id === employeeId)?.name ?? '알수없음';
 
-  const doApprove = async (request: LeaveRequest) => {
-    await leaveService.approve(request.id, session!.employeeId);
-    showToast(request.leaveType === 'monthly' ? '월차 신청을 승인했습니다.' : '휴무 신청을 승인했습니다.');
+  const doApprove = async (group: LeaveRequestGroup) => {
+    for (const request of group.requests) {
+      await leaveService.approve(request.id, session!.employeeId);
+    }
+    const first = group.requests[0];
+    showToast(first.leaveType === 'monthly' ? '월차 신청을 승인했습니다.' : `${group.requests.length}일의 휴무 신청을 승인했습니다.`);
+    setOverwriteConfirm(null);
     setRefreshKey((k) => k + 1);
   };
 
-  const handleApproveClick = async (request: LeaveRequest) => {
-    if (await leaveService.hasExistingWorkShift(request.requestedDate, request.employeeId)) {
-      setOverwriteConfirm(request);
+  const handleApproveClick = async (group: LeaveRequestGroup) => {
+    const hasExistingShift = await Promise.all(group.requests.map((request) =>
+      leaveService.hasExistingWorkShift(request.requestedDate, request.employeeId)
+    ));
+    if (hasExistingShift.some(Boolean)) {
+      setOverwriteConfirm(group);
       return;
     }
-    await doApprove(request);
+    await doApprove(group);
   };
 
   const handleReject = async () => {
     if (!rejectTarget || !rejectReason.trim()) return;
-    await leaveService.reject(rejectTarget.id, session!.employeeId, rejectReason.trim());
-    showToast('휴무 신청을 반려했습니다.');
+    for (const request of rejectTarget.requests) {
+      await leaveService.reject(request.id, session!.employeeId, rejectReason.trim());
+    }
+    showToast(`${rejectTarget.requests.length}일의 휴무 신청을 반려했습니다.`);
     setRejectTarget(null);
     setRejectReason('');
     setRefreshKey((k) => k + 1);
@@ -129,45 +154,48 @@ export function LeaveApprovalPage() {
         ))}
       </div>
 
-      {filtered.length === 0 ? (
+      {groupedRequests.length === 0 ? (
         <EmptyState icon="✅" title="해당 조건의 휴무 신청이 없습니다" />
       ) : (
         <div className="grid md:grid-cols-2 gap-3">
-          {filtered.map((r) => (
-            <Card key={r.id} hover>
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-3"><div className="icon-well bg-brand-red-light text-brand-red"><CalendarCheck2 size={18} /></div><p className="font-bold text-ink">{nameOf(r.employeeId)}</p></div>
-                <LeaveStatusBadge status={r.status} />
-              </div>
-              <span className={`mb-2 inline-flex rounded-full px-2 py-1 text-[11px] font-bold ${
-                r.leaveType === 'monthly'
-                  ? 'bg-status-working-bg text-status-working'
-                  : 'bg-brand-beige-light text-ink-soft'
-              }`}>
-                {r.leaveType === 'monthly' ? '월차' : '휴무'}
-              </span>
-              <p className="text-sm text-ink-soft mb-1">
-                {formatMonthDay(r.requestedDate)} ({getWeekdayLabel(r.requestedDate)}) 신청
-              </p>
-              <p className="text-sm text-ink mb-2">{r.reason}</p>
-              <p className="text-[11px] text-ink-faint mb-3">신청일 {formatDateTimeKo(r.createdAt)}</p>
-              {r.status === 'rejected' && r.rejectReason && (
-                <p className="text-xs text-status-rejected bg-status-rejected-bg rounded-control px-2 py-1.5 mb-3">
-                  반려 사유: {r.rejectReason}
-                </p>
-              )}
-              {r.status === 'pending' && (
-                <div className="flex gap-2">
-                  <Button size="sm" fullWidth onClick={() => handleApproveClick(r)}>
-                    승인
-                  </Button>
-                  <Button size="sm" fullWidth variant="danger" onClick={() => setRejectTarget(r)}>
-                    반려
-                  </Button>
+          {groupedRequests.map((group) => {
+            const first = group.requests[0];
+            return (
+              <Card key={group.key} hover>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-3"><div className="icon-well bg-brand-red-light text-brand-red"><CalendarCheck2 size={18} /></div><p className="font-bold text-ink">{nameOf(first.employeeId)}</p></div>
+                  <LeaveStatusBadge status={first.status} />
                 </div>
-              )}
-            </Card>
-          ))}
+                <span className={`mb-2 inline-flex rounded-full px-2 py-1 text-[11px] font-bold ${
+                  first.leaveType === 'monthly'
+                    ? 'bg-status-working-bg text-status-working'
+                    : 'bg-brand-beige-light text-ink-soft'
+                }`}>
+                  {first.leaveType === 'monthly' ? '월차' : `휴무 ${group.requests.length}일`}
+                </span>
+                <p className="text-sm font-semibold leading-relaxed text-ink-soft mb-1">
+                  {group.requests.map((request) => `${formatMonthDay(request.requestedDate)}(${getWeekdayLabel(request.requestedDate)})`).join(', ')}
+                </p>
+                <p className="text-sm text-ink mb-2">{first.reason}</p>
+                <p className="text-[11px] text-ink-faint mb-3">신청일 {formatDateTimeKo(first.createdAt)}</p>
+                {first.status === 'rejected' && first.rejectReason && (
+                  <p className="text-xs text-status-rejected bg-status-rejected-bg rounded-control px-2 py-1.5 mb-3">
+                    반려 사유: {first.rejectReason}
+                  </p>
+                )}
+                {first.status === 'pending' && (
+                  <div className="flex gap-2">
+                    <Button size="sm" fullWidth onClick={() => handleApproveClick(group)}>
+                      승인
+                    </Button>
+                    <Button size="sm" fullWidth variant="danger" onClick={() => setRejectTarget(group)}>
+                      반려
+                    </Button>
+                  </div>
+                )}
+              </Card>
+            );
+          })}
         </div>
       )}
 
@@ -192,7 +220,7 @@ export function LeaveApprovalPage() {
       <ConfirmDialog
         open={!!overwriteConfirm}
         title="기존 근무 스케줄이 있습니다"
-        description="해당 날짜에 이미 근무가 입력되어 있습니다. 승인하면 휴무로 변경됩니다. 계속할까요?"
+        description="선택한 날짜 중 기존 근무 스케줄이 있는 날이 있습니다. 승인하면 해당 날짜들을 휴무로 변경합니다. 계속할까요?"
         confirmLabel="휴무로 변경하고 승인"
         onConfirm={() => overwriteConfirm && doApprove(overwriteConfirm)}
         onClose={() => setOverwriteConfirm(null)}

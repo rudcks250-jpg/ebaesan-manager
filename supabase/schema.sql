@@ -88,6 +88,7 @@ create index if not exists idx_attendance_employee on public.attendance(employee
 -- ---------------------------------------------------------
 create table if not exists public.leave_requests (
   id uuid primary key default gen_random_uuid(),
+  request_group_id uuid,
   employee_id uuid not null references public.employees(id) on delete cascade,
   requested_date date not null,
   reason text,
@@ -101,6 +102,12 @@ create table if not exists public.leave_requests (
 
 create index if not exists idx_leave_employee on public.leave_requests(employee_id);
 create index if not exists idx_leave_status on public.leave_requests(status);
+create index if not exists idx_leave_requests_group
+  on public.leave_requests(request_group_id)
+  where request_group_id is not null;
+create unique index if not exists uq_leave_requests_employee_active_date
+  on public.leave_requests(employee_id, requested_date)
+  where status <> 'rejected';
 
 -- ---------------------------------------------------------
 -- 5. payrolls (급여 정산 상태 - 실제 급여액은 근무기록으로 그때그때 계산하고,

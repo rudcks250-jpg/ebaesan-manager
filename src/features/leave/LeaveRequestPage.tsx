@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Card } from '@/components/common/Card';
 import { Button } from '@/components/common/Button';
-import { Select, Textarea } from '@/components/common/Input';
+import { Textarea } from '@/components/common/Input';
 import { EmptyState } from '@/components/common/EmptyState';
 import { LeaveStatusBadge } from '@/features/leave/LeaveStatusBadge';
 import { useToast } from '@/components/common/Toast';
@@ -14,13 +14,13 @@ import {
   monthsOfYear,
 } from '@/features/leave/monthlyLeave';
 import { getMondayOfWeekStr, getWeekDates, addWeeks, parseDate, formatDate, formatMonthDay, getWeekdayLabel, formatDateTimeKo } from '@/utils/date';
-import { CalendarPlus, CalendarRange, History } from 'lucide-react';
+import { CalendarPlus, CalendarRange, Check, History } from 'lucide-react';
 import type { Employee, LeaveType } from '@/data/types';
 
 export function LeaveRequestPage({ employeeId }: { employeeId: string }) {
   const { showToast } = useToast();
   const [refreshKey, setRefreshKey] = useState(0);
-  const [selectedDate, setSelectedDate] = useState('');
+  const [selectedDates, setSelectedDates] = useState<string[]>([]);
   const [reason, setReason] = useState('');
   const [leaveType, setLeaveType] = useState<LeaveType>('regular');
   const [error, setError] = useState('');
@@ -40,20 +40,36 @@ export function LeaveRequestPage({ employeeId }: { employeeId: string }) {
   }, [employeeId, refreshKey]);
 
   const monthlyEligible = isMonthlyLeaveEligible(employee);
-  const selectedMonth = leaveMonth(selectedDate || formatDate(new Date()));
+  const selectedMonth = leaveMonth(selectedDates[0] || formatDate(new Date()));
   const selectedMonthlyRequest = activeMonthlyRequest(myRequests, selectedMonth);
   const currentMonth = formatDate(new Date()).slice(0, 7);
   const currentMonthlyRequest = activeMonthlyRequest(myRequests, currentMonth);
   const historyMonths = monthsOfYear(new Date().getFullYear());
 
+  const activeRequestByDate = useMemo(() => new Map(
+    myRequests
+      .filter((request) => request.status !== 'rejected')
+      .map((request) => [request.requestedDate, request])
+  ), [myRequests]);
+
+  const toggleDate = (date: string) => {
+    if (activeRequestByDate.has(date)) return;
+    setError('');
+    setSelectedDates((selected) => {
+      if (selected.includes(date)) return selected.filter((item) => item !== date);
+      if (leaveType === 'monthly') return [date];
+      return [...selected, date].sort();
+    });
+  };
+
   const handleSubmit = async () => {
-    if (!selectedDate) {
+    if (selectedDates.length === 0) {
       setError('신청할 날짜를 선택해주세요.');
       return;
     }
-    const result = await leaveService.create({
+    const result = await leaveService.createMany({
       employeeId: employeeId,
-      requestedDate: selectedDate,
+      requestedDates: selectedDates,
       reason,
       leaveType,
     });
@@ -62,7 +78,7 @@ export function LeaveRequestPage({ employeeId }: { employeeId: string }) {
       return;
     }
     showToast(leaveType === 'monthly' ? '월차 신청이 접수되었습니다.' : '휴무 신청이 접수되었습니다.');
-    setSelectedDate('');
+    setSelectedDates([]);
     setReason('');
     setError('');
     setRefreshKey((k) => k + 1);
@@ -97,6 +113,7 @@ export function LeaveRequestPage({ employeeId }: { employeeId: string }) {
                     checked={leaveType === value}
                     onChange={() => {
                       setLeaveType(value);
+                      if (value === 'monthly') setSelectedDates((dates) => dates.slice(0, 1));
                       setError('');
                     }}
                     className="accent-brand-red"
@@ -107,18 +124,41 @@ export function LeaveRequestPage({ employeeId }: { employeeId: string }) {
             </div>
           </fieldset>
         )}
-        <Select
-          label="희망 날짜"
-          value={selectedDate}
-          onChange={(e) => setSelectedDate(e.target.value)}
-        >
-          <option value="">날짜를 선택하세요</option>
-          {nextWeekDates.map((d) => (
-            <option key={d} value={d}>
-              {getWeekdayLabel(d)}요일 · {formatMonthDay(d)}
-            </option>
-          ))}
-        </Select>
+        <fieldset className="mb-4">
+          <legend className="mb-2 text-xs font-semibold text-ink-soft">
+            희망 날짜 {leaveType === 'monthly' && <span className="font-medium text-ink-faint">· 한 날짜만 선택</span>}
+          </legend>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+            {nextWeekDates.map((date) => {
+              const existing = activeRequestByDate.get(date);
+              const selected = selectedDates.includes(date);
+              return (
+                <button
+                  key={date}
+                  type="button"
+                  disabled={!!existing}
+                  onClick={() => toggleDate(date)}
+                  className={`relative flex min-h-[76px] flex-col items-center justify-center rounded-2xl border px-2 py-3 text-center transition-all press-scale disabled:cursor-not-allowed disabled:opacity-70 ${
+                    selected
+                      ? 'border-brand-red bg-brand-red text-white shadow-[0_8px_20px_-12px_rgba(0,122,255,.9)]'
+                      : existing
+                        ? 'border-black/[0.04] bg-brand-beige-light text-ink-faint'
+                        : 'border-border bg-white text-ink hover:border-brand-red/40'
+                  }`}
+                >
+                  {selected && <Check size={15} className="absolute right-2 top-2" strokeWidth={3} />}
+                  <span className="text-xs font-bold">{getWeekdayLabel(date)}</span>
+                  <span className="mt-1 text-sm font-bold tabular-nums">{formatMonthDay(date)}</span>
+                  {existing && (
+                    <span className="mt-1 text-[10px] font-bold">
+                      {existing.status === 'approved' ? '승인 완료' : '승인 대기'}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
         {leaveType === 'monthly' && (
           <div className={`mb-4 rounded-2xl px-4 py-3 ${
             selectedMonthlyRequest ? 'bg-status-rejected-bg' : 'bg-status-working-bg'
@@ -141,13 +181,21 @@ export function LeaveRequestPage({ employeeId }: { employeeId: string }) {
           onChange={(e) => setReason(e.target.value)}
           placeholder="사유를 입력해주세요"
         />
+        <div className="mb-4 rounded-2xl bg-brand-beige-light px-4 py-3">
+          <p className="text-xs font-semibold text-ink-faint">선택한 휴무</p>
+          <p className={`mt-1 text-sm font-bold ${selectedDates.length ? 'text-ink' : 'text-ink-faint'}`}>
+            {selectedDates.length
+              ? selectedDates.map((date) => `${formatMonthDay(date)}(${getWeekdayLabel(date)})`).join(', ')
+              : '날짜를 선택해주세요.'}
+          </p>
+        </div>
         {error && <p className="text-xs text-status-rejected -mt-2 mb-3">{error}</p>}
         <Button
           fullWidth
           onClick={handleSubmit}
-          disabled={leaveType === 'monthly' && !!selectedMonthlyRequest}
+          disabled={selectedDates.length === 0 || (leaveType === 'monthly' && !!selectedMonthlyRequest)}
         >
-          신청하기
+          {selectedDates.length > 1 ? `${selectedDates.length}일 휴무 신청` : '휴무 신청'}
         </Button>
       </Card>
 
