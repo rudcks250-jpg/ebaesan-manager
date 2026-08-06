@@ -17,6 +17,27 @@ import { getMondayOfWeekStr, getWeekDates, addWeeks, parseDate, formatDate, form
 import { CalendarPlus, CalendarRange, Check, History } from 'lucide-react';
 import type { Employee, LeaveType } from '@/data/types';
 
+function dayOfMonth(date: string): number {
+  return Number(date.slice(8, 10));
+}
+
+function compactMonthDay(date: string): string {
+  return `${Number(date.slice(5, 7))}/${dayOfMonth(date)}`;
+}
+
+function formatWeekRange(dates: string[]): string {
+  const start = parseDate(dates[0]);
+  const end = parseDate(dates[dates.length - 1]);
+  const startYear = start.getFullYear();
+  const startMonth = start.getMonth() + 1;
+  const endYear = end.getFullYear();
+  const endMonth = end.getMonth() + 1;
+  const endPrefix = startYear === endYear
+    ? startMonth === endMonth ? '' : `${endMonth}월 `
+    : `${endYear}년 ${endMonth}월 `;
+  return `${startYear}년 ${startMonth}월 ${start.getDate()}일 ~ ${endPrefix}${end.getDate()}일`;
+}
+
 export function LeaveRequestPage({ employeeId }: { employeeId: string }) {
   const { showToast } = useToast();
   const [refreshKey, setRefreshKey] = useState(0);
@@ -40,7 +61,7 @@ export function LeaveRequestPage({ employeeId }: { employeeId: string }) {
   }, [employeeId, refreshKey]);
 
   const monthlyEligible = isMonthlyLeaveEligible(employee);
-  const selectedMonth = leaveMonth(selectedDates[0] || formatDate(new Date()));
+  const selectedMonth = leaveMonth(selectedDates[0] || nextWeekDates[0]);
   const selectedMonthlyRequest = activeMonthlyRequest(myRequests, selectedMonth);
   const currentMonth = formatDate(new Date()).slice(0, 7);
   const currentMonthlyRequest = activeMonthlyRequest(myRequests, currentMonth);
@@ -87,9 +108,10 @@ export function LeaveRequestPage({ employeeId }: { employeeId: string }) {
   return (
     <div className="grid lg:grid-cols-[1fr_.9fr] gap-5 items-start">
       <Card className="lg:sticky lg:top-6">
-        <div className="icon-well bg-brand-red-light text-brand-red mb-5"><CalendarPlus size={19} /></div>
+        <div className="icon-well bg-brand-red-light text-brand-red mb-3"><CalendarPlus size={19} /></div>
         <p className="text-xl font-bold tracking-tight text-ink mb-1">다음 주 휴무 신청</p>
-        <p className="text-xs text-ink-soft mb-4">이번 주는 신청할 수 없으며, 다음 주 날짜만 신청 가능합니다.</p>
+        <p className="text-xs text-ink-soft mb-1">이번 주는 신청할 수 없으며, 다음 주 날짜만 신청 가능합니다.</p>
+        <p className="mb-4 text-sm font-bold tabular-nums text-ink">{formatWeekRange(nextWeekDates)}</p>
         {monthlyEligible && (
           <fieldset className="mb-4">
             <legend className="mb-2 text-xs font-semibold text-ink-soft">신청 종류</legend>
@@ -128,7 +150,7 @@ export function LeaveRequestPage({ employeeId }: { employeeId: string }) {
           <legend className="mb-2 text-xs font-semibold text-ink-soft">
             희망 날짜 {leaveType === 'monthly' && <span className="font-medium text-ink-faint">· 한 날짜만 선택</span>}
           </legend>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+          <div className="grid grid-cols-4 gap-2 lg:grid-cols-7">
             {nextWeekDates.map((date) => {
               const existing = activeRequestByDate.get(date);
               const selected = selectedDates.includes(date);
@@ -138,7 +160,7 @@ export function LeaveRequestPage({ employeeId }: { employeeId: string }) {
                   type="button"
                   disabled={!!existing}
                   onClick={() => toggleDate(date)}
-                  className={`relative flex min-h-[76px] flex-col items-center justify-center rounded-2xl border px-2 py-3 text-center transition-all press-scale disabled:cursor-not-allowed disabled:opacity-70 ${
+                  className={`relative flex min-h-16 min-w-0 flex-col items-center justify-center overflow-hidden rounded-2xl border px-1.5 py-2 text-center transition-all press-scale disabled:cursor-not-allowed disabled:opacity-70 ${
                     selected
                       ? 'border-brand-red bg-brand-red text-white shadow-[0_8px_20px_-12px_rgba(0,122,255,.9)]'
                       : existing
@@ -146,11 +168,11 @@ export function LeaveRequestPage({ employeeId }: { employeeId: string }) {
                         : 'border-border bg-white text-ink hover:border-brand-red/40'
                   }`}
                 >
-                  {selected && <Check size={15} className="absolute right-2 top-2" strokeWidth={3} />}
-                  <span className="text-xs font-bold">{getWeekdayLabel(date)}</span>
-                  <span className="mt-1 text-sm font-bold tabular-nums">{formatMonthDay(date)}</span>
+                  {selected && <Check size={14} className="absolute right-1.5 top-1.5" strokeWidth={3} />}
+                  <span className="text-[11px] font-bold">{getWeekdayLabel(date)}</span>
+                  <span className="mt-0.5 text-xl font-extrabold leading-none tabular-nums">{dayOfMonth(date)}</span>
                   {existing && (
-                    <span className="mt-1 text-[10px] font-bold">
+                    <span className="mt-1 whitespace-nowrap text-[9px] font-bold">
                       {existing.status === 'approved' ? '승인 완료' : '승인 대기'}
                     </span>
                   )}
@@ -179,16 +201,15 @@ export function LeaveRequestPage({ employeeId }: { employeeId: string }) {
           label="휴무 사유"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
-          placeholder="사유를 입력해주세요"
+          placeholder="휴무 사유를 입력해주세요"
+          rows={2}
+          className="min-h-[72px]"
         />
-        <div className="mb-4 rounded-2xl bg-brand-beige-light px-4 py-3">
-          <p className="text-xs font-semibold text-ink-faint">선택한 휴무</p>
-          <p className={`mt-1 text-sm font-bold ${selectedDates.length ? 'text-ink' : 'text-ink-faint'}`}>
-            {selectedDates.length
-              ? selectedDates.map((date) => `${formatMonthDay(date)}(${getWeekdayLabel(date)})`).join(', ')
-              : '날짜를 선택해주세요.'}
-          </p>
-        </div>
+        <p className={`mb-4 text-sm font-semibold leading-relaxed ${selectedDates.length ? 'text-ink' : 'text-ink-faint'}`}>
+          {selectedDates.length
+            ? `선택: ${selectedDates.map((date) => `${compactMonthDay(date)}(${getWeekdayLabel(date)})`).join(', ')}`
+            : '휴무 날짜를 선택해주세요.'}
+        </p>
         {error && <p className="text-xs text-status-rejected -mt-2 mb-3">{error}</p>}
         <Button
           fullWidth
