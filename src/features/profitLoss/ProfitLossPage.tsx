@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Copy, Pencil, Plus, Trash2, TrendingDown, TrendingUp } from 'lucide-react';
+import { Camera, ChevronLeft, ChevronRight, Copy, ImageDown, Pencil, Plus, Share2, Trash2, TrendingDown, TrendingUp, X } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { Card } from '@/components/common/Card';
 import { Button } from '@/components/common/Button';
@@ -11,6 +11,8 @@ import { useToast } from '@/components/common/Toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 import { employeeService } from '@/services/employeeService';
+import { ProfitLossReport } from '@/features/profitLoss/ProfitLossReport';
+import { exportReportPngs, shareReportPages } from '@/features/profitLoss/profitLossReportExport';
 import type { Employee } from '@/data/types';
 
 type AmountMap = Record<string, number>;
@@ -245,6 +247,9 @@ export function ProfitLossPage() {
   const [deleteItem, setDeleteItem] = useState<{ field: SectionField; key: string } | null>(null);
   const [taxModalOpen, setTaxModalOpen] = useState(false);
   const [taxAmount, setTaxAmount] = useState(0);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportBusy, setReportBusy] = useState<'png' | 'share' | null>(null);
+  const reportRef = useRef<HTMLDivElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const employeeNames = employees.map((employee) => employee.name);
   const current = normalizeMonth(allData[selectedMonth], employeeNames);
@@ -402,6 +407,34 @@ export function ProfitLossPage() {
   };
 
   const [year, month] = selectedMonth.split('-').map(Number);
+  const reportFilename = `이배산_손익계산서_${year}-${String(month).padStart(2, '0')}`;
+
+  const handleSaveReportPng = async () => {
+    if (!reportRef.current || reportBusy) return;
+    setReportBusy('png');
+    try {
+      const count = await exportReportPngs(reportRef.current, reportFilename);
+      showToast(`이번달 손익계산서 이미지 ${count}장이 생성되었습니다.`);
+    } catch {
+      showToast('손익계산서 이미지 생성에 실패했습니다. 다시 시도해주세요.', 'error');
+    } finally {
+      setReportBusy(null);
+    }
+  };
+
+  const handleShareReport = async () => {
+    if (!reportRef.current || reportBusy) return;
+    setReportBusy('share');
+    try {
+      const result = await shareReportPages(reportRef.current, reportFilename, `${year}년 ${month}월 손익 보고서`);
+      showToast(result === 'shared' ? '이번달 손익계산서를 공유했습니다.' : '공유를 지원하지 않아 이미지 4장으로 저장했습니다.');
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      showToast('손익계산서 이미지 생성에 실패했습니다. 다시 시도해주세요.', 'error');
+    } finally {
+      setReportBusy(null);
+    }
+  };
   const cards = [
     { label: '영업이익', value: totals.finalOperatingProfit, previous: previousTotals.finalOperatingProfit },
     { label: '영업이익률', value: percent(totals.finalOperatingProfit, current.sales), previous: percent(previousTotals.finalOperatingProfit, previous.sales), percent: true },
@@ -423,7 +456,7 @@ export function ProfitLossPage() {
             <p className="text-xl font-bold text-ink">{year}년 {month}월</p>
             <Button size="sm" variant="ghost" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))}>다음달 <ChevronRight size={17} /></Button>
           </div>
-          <div className="mt-4 flex justify-end">
+          <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
             <span className={`mr-3 self-center text-xs font-semibold ${saveState === 'error' ? 'text-red-500' : 'text-ink-faint'}`}>
               {saveState === 'saving' ? '저장 중…' : saveState === 'saved' ? '자동 저장됨' : saveState === 'error' ? '저장 실패' : ''}
             </span>
@@ -433,6 +466,9 @@ export function ProfitLossPage() {
               update({ ...structuredClone(source), memo: source.memo });
             }} disabled={!allData[shiftMonth(selectedMonth, -1)]}>
               <span className="flex items-center gap-1"><Copy size={14} /> 이번 달 복사</span>
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => setReportOpen(true)}>
+              <span className="flex items-center gap-1"><Camera size={14} /> 이번달 손익계산서 공유하기</span>
             </Button>
           </div>
         </Card>
@@ -574,6 +610,62 @@ export function ProfitLossPage() {
         onConfirm={confirmDeleteItem}
         onClose={() => setDeleteItem(null)}
       />
+
+      {reportOpen && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-black/45 backdrop-blur-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2 bg-ink/95 px-4 py-3 sm:px-6">
+            <p className="text-sm font-bold text-white">{year}년 {month}월 손익계산서 미리보기 · 4장</p>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <Button size="sm" variant="secondary" onClick={() => void handleSaveReportPng()} disabled={!!reportBusy}>
+                <span className="flex items-center gap-1"><ImageDown size={14} /> {reportBusy === 'png' ? '저장 중…' : '이미지 저장'}</span>
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => void handleShareReport()} disabled={!!reportBusy}>
+                <span className="flex items-center gap-1"><Share2 size={14} /> {reportBusy === 'share' ? '공유 중…' : '공유하기'}</span>
+              </Button>
+              <button
+                onClick={() => setReportOpen(false)}
+                aria-label="닫기"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white press-scale hover:bg-white/20"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+          <div className="grow overflow-y-auto bg-brand-beige-light p-4 sm:p-8">
+            <div className="mx-auto max-w-full overflow-x-auto rounded-3xl bg-white shadow-premium-lg">
+              <ProfitLossReport
+                ref={reportRef}
+                companyName="이배산 숯불구이"
+                year={year}
+                month={month}
+                sales={current.sales}
+                foodItems={current.food}
+                drinksItems={current.drinks}
+                laborItems={current.labor}
+                adsItems={current.ads}
+                operationsItems={current.operations}
+                fixedCostsItems={current.fixedCosts}
+                taxReserve={current.taxReserve}
+                operatingProfit={totals.operatingProfit}
+                finalOperatingProfit={totals.finalOperatingProfit}
+                memo={current.memo}
+                previous={{
+                  sales: previous.sales,
+                  food: previousTotals.food,
+                  drinks: previousTotals.drinks,
+                  cost: previousTotals.food + previousTotals.drinks,
+                  labor: previousTotals.labor,
+                  ads: previousTotals.ads,
+                  operations: previousTotals.operations,
+                  fixedCosts: previousTotals.fixedCosts,
+                  operatingProfit: previousTotals.operatingProfit,
+                  finalOperatingProfit: previousTotals.finalOperatingProfit,
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }
