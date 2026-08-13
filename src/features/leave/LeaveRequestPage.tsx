@@ -45,6 +45,7 @@ export function LeaveRequestPage({ employeeId }: { employeeId: string }) {
   const [reason, setReason] = useState('');
   const [leaveType, setLeaveType] = useState<LeaveType>('regular');
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [employee, setEmployee] = useState<Employee>();
 
   const nextWeekDates = useMemo(() => {
@@ -88,21 +89,33 @@ export function LeaveRequestPage({ employeeId }: { employeeId: string }) {
       setError('신청할 날짜를 선택해주세요.');
       return;
     }
-    const result = await leaveService.createMany({
-      employeeId: employeeId,
-      requestedDates: selectedDates,
-      reason,
-      leaveType,
-    });
-    if (!result.success) {
-      setError(result.errorMessage);
-      return;
+    setSubmitting(true);
+    try {
+      const result = await leaveService.createMany({
+        employeeId,
+        requestedDates: selectedDates,
+        reason,
+        leaveType,
+      });
+      if (!result.success) {
+        setError(result.errorMessage);
+        showToast(result.errorMessage);
+        return;
+      }
+      showToast(leaveType === 'monthly' ? '월차 신청이 완료되었습니다.' : '휴무 신청이 완료되었습니다.');
+      setMyRequests((current) => [...result.requests, ...current]);
+      setSelectedDates([]);
+      setReason('');
+      setError('');
+      setRefreshKey((k) => k + 1);
+    } catch (submitError) {
+      console.error('휴무 신청 처리 실패', submitError);
+      const message = '휴무 신청 저장에 실패했습니다. 다시 시도해주세요.';
+      setError(message);
+      showToast(message);
+    } finally {
+      setSubmitting(false);
     }
-    showToast(leaveType === 'monthly' ? '월차 신청이 접수되었습니다.' : '휴무 신청이 접수되었습니다.');
-    setSelectedDates([]);
-    setReason('');
-    setError('');
-    setRefreshKey((k) => k + 1);
   };
 
   return (
@@ -214,9 +227,9 @@ export function LeaveRequestPage({ employeeId }: { employeeId: string }) {
         <Button
           fullWidth
           onClick={handleSubmit}
-          disabled={selectedDates.length === 0 || (leaveType === 'monthly' && !!selectedMonthlyRequest)}
+          disabled={submitting || selectedDates.length === 0 || (leaveType === 'monthly' && !!selectedMonthlyRequest)}
         >
-          {selectedDates.length > 1 ? `${selectedDates.length}일 휴무 신청` : '휴무 신청'}
+          {submitting ? '저장 중...' : selectedDates.length > 1 ? `${selectedDates.length}일 휴무 신청` : '휴무 신청'}
         </Button>
       </Card>
 

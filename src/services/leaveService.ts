@@ -79,9 +79,12 @@ export const leaveService = {
       }
     }
     const existing = await leaveRepository.findByEmployee(input.employeeId);
-    const duplicate = existing.find((r) => requestedDates.includes(r.requestedDate) && r.status !== 'rejected');
-    if (duplicate) {
-      return { success: false, errorMessage: `${duplicate.requestedDate}은(는) 이미 휴무 신청이 있습니다.` };
+    const activeDates = new Set(
+      existing.filter((request) => request.status !== 'rejected').map((request) => request.requestedDate)
+    );
+    const newDates = requestedDates.filter((date) => !activeDates.has(date));
+    if (newDates.length === 0) {
+      return { success: false, errorMessage: '선택한 날짜는 이미 휴무 신청이 있습니다.' };
     }
     if (input.leaveType === 'monthly' && activeMonthlyRequest(existing, leaveMonth(requestedDates[0]))) {
       return { success: false, errorMessage: '해당 월의 월차를 이미 신청하거나 사용했습니다.' };
@@ -89,7 +92,7 @@ export const leaveService = {
     let requests: LeaveRequest[];
     try {
       const requestGroupId = crypto.randomUUID();
-      requests = await leaveRepository.insertMany(requestedDates.map((requestedDate) => ({
+      requests = await leaveRepository.insertMany(newDates.map((requestedDate) => ({
         employeeId: input.employeeId,
         requestGroupId,
         requestedDate,
@@ -99,10 +102,18 @@ export const leaveService = {
       })));
     } catch (error) {
       const message = (error as { message?: string })?.message ?? '';
+      console.error('휴무 신청 저장 실패', {
+        employeeId: input.employeeId,
+        requestedDates: newDates,
+        error,
+      });
       if (message.includes('monthly') || message.includes('월차')) {
         return { success: false, errorMessage: '해당 월의 월차를 이미 신청하거나 사용했습니다.' };
       }
-      return { success: false, errorMessage: '휴무 신청을 저장하지 못했습니다.' };
+      if (message.includes('duplicate') || message.includes('unique')) {
+        return { success: false, errorMessage: '이미 휴무 신청된 날짜가 포함되어 있습니다.' };
+      }
+      return { success: false, errorMessage: '휴무 신청 저장에 실패했습니다. 다시 시도해주세요.' };
     }
     await notificationService.dispatch().catch(() => undefined);
     return { success: true, requests };

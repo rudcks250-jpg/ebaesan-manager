@@ -43,19 +43,34 @@ export const leaveRepository = {
   },
 
   async insertMany(requests: Omit<LeaveRequest, 'id' | 'createdAt'>[]): Promise<LeaveRequest[]> {
+    const rows = requests.map((request) => ({
+      employee_id: request.employeeId,
+      request_group_id: request.requestGroupId,
+      requested_date: request.requestedDate,
+      reason: request.reason,
+      leave_type: request.leaveType,
+      status: request.status,
+    }));
     const { data, error } = await supabase
       .from('leave_requests')
-      .insert(requests.map((request) => ({
-        employee_id: request.employeeId,
-        request_group_id: request.requestGroupId,
-        requested_date: request.requestedDate,
-        reason: request.reason,
-        leave_type: request.leaveType,
-        status: request.status,
-      })))
+      .insert(rows)
       .select();
-    if (error) throw error;
-    return (data ?? []).map(rowToLeave);
+    if (!error) return (data ?? []).map(rowToLeave);
+
+    // 다중 신청 UI가 먼저 배포되고 request_group_id 마이그레이션이 아직 적용되지
+    // 않은 운영 DB에서도 전체 날짜를 하나의 bulk INSERT로 원자적으로 저장합니다.
+    // 첫 INSERT는 스키마 검증 단계에서 실패하므로 일부 row가 저장되는 일은 없습니다.
+    const missingGroupColumn =
+      error.code === 'PGRST204' && error.message.includes('request_group_id');
+    if (!missingGroupColumn) throw error;
+
+    const compatibleRows = rows.map(({ request_group_id: _requestGroupId, ...row }) => row);
+    const fallback = await supabase
+      .from('leave_requests')
+      .insert(compatibleRows)
+      .select();
+    if (fallback.error) throw fallback.error;
+    return (fallback.data ?? []).map(rowToLeave);
   },
 
   async update(id: string, patch: Partial<LeaveRequest>): Promise<LeaveRequest | undefined> {
