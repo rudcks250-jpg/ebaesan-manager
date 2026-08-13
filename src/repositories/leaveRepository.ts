@@ -48,7 +48,9 @@ export const leaveRepository = {
       request_group_id: request.requestGroupId,
       requested_date: request.requestedDate,
       reason: request.reason,
-      leave_type: request.leaveType,
+      // 운영 DB에 월차 마이그레이션이 아직 없는 환경과 호환되도록 일반 휴무는
+      // DB 기본값을 사용합니다. 월차일 때만 leave_type 컬럼을 전송합니다.
+      ...(request.leaveType === 'monthly' ? { leave_type: request.leaveType } : {}),
       status: request.status,
     }));
     const { data, error } = await supabase
@@ -56,6 +58,14 @@ export const leaveRepository = {
       .insert(rows)
       .select();
     if (!error) return (data ?? []).map(rowToLeave);
+
+    console.error('[LeaveRequest] insert failed', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      payload: rows,
+    });
 
     // 다중 신청 UI가 먼저 배포되고 request_group_id 마이그레이션이 아직 적용되지
     // 않은 운영 DB에서도 전체 날짜를 하나의 bulk INSERT로 원자적으로 저장합니다.
@@ -69,7 +79,16 @@ export const leaveRepository = {
       .from('leave_requests')
       .insert(compatibleRows)
       .select();
-    if (fallback.error) throw fallback.error;
+    if (fallback.error) {
+      console.error('[LeaveRequest] compatible insert failed', {
+        code: fallback.error.code,
+        message: fallback.error.message,
+        details: fallback.error.details,
+        hint: fallback.error.hint,
+        payload: compatibleRows,
+      });
+      throw fallback.error;
+    }
     return (fallback.data ?? []).map(rowToLeave);
   },
 

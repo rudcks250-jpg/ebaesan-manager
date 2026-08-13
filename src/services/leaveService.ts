@@ -90,8 +90,8 @@ export const leaveService = {
       return { success: false, errorMessage: '해당 월의 월차를 이미 신청하거나 사용했습니다.' };
     }
     let requests: LeaveRequest[];
+    const requestGroupId = crypto.randomUUID();
     try {
-      const requestGroupId = crypto.randomUUID();
       requests = await leaveRepository.insertMany(newDates.map((requestedDate) => ({
         employeeId: input.employeeId,
         requestGroupId,
@@ -105,7 +105,18 @@ export const leaveService = {
       console.error('휴무 신청 저장 실패', {
         employeeId: input.employeeId,
         requestedDates: newDates,
-        error,
+        code: (error as { code?: string })?.code,
+        message: (error as { message?: string })?.message,
+        details: (error as { details?: string })?.details,
+        hint: (error as { hint?: string })?.hint,
+        payload: newDates.map((requestedDate) => ({
+          employee_id: input.employeeId,
+          request_group_id: requestGroupId,
+          requested_date: requestedDate,
+          reason: input.reason.trim(),
+          ...(input.leaveType === 'monthly' ? { leave_type: input.leaveType } : {}),
+          status: 'pending',
+        })),
       });
       if (message.includes('monthly') || message.includes('월차')) {
         return { success: false, errorMessage: '해당 월의 월차를 이미 신청하거나 사용했습니다.' };
