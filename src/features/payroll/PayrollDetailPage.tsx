@@ -100,11 +100,7 @@ export function PayrollDetailPage() {
   const totalMinutes = workTimeService.sumMinutes(filteredRecords);
   const isHourly = employee?.wageType === 'hourly';
   const hourlyWage = employee?.hourlyWage ?? 0;
-  const gross = employee
-    ? isHourly
-      ? payrollService.calcGrossPay(hourlyWage, totalMinutes)
-      : (employee.monthlySalary ?? 0)
-    : 0;
+  const gross = employee ? payrollService.calcEmployeeGrossPay(employee, totalMinutes) : 0;
   const deduction = employee ? payrollService.calcEmployeeDeduction(employee, gross) : 0;
   const net = gross - deduction;
 
@@ -161,7 +157,7 @@ export function PayrollDetailPage() {
           <p className="mt-1 text-sm font-semibold text-ink-soft sm:text-base">
             {isHourly
               ? `시급 ${hourlyWage.toLocaleString()}원`
-              : `월급 ${(employee.monthlySalary ?? 0).toLocaleString()}원`}
+              : `월급 ${gross.toLocaleString()}원`}
           </p>
         </div>
 

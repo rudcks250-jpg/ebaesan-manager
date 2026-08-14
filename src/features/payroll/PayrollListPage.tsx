@@ -107,7 +107,7 @@ export function PayrollListPage() {
                   <span className="text-right font-semibold text-ink tabular-num">{row.totalDays}일</span>
                   <span className="text-ink-soft">{row.employee.wageType === 'hourly' ? '시급' : '월급'}</span>
                   <span className="text-right font-semibold text-ink tabular-num">
-                    {(row.employee.wageType === 'hourly' ? row.employee.hourlyWage : row.employee.monthlySalary)?.toLocaleString()}원
+                    {(row.employee.wageType === 'hourly' ? row.employee.hourlyWage : row.gross)?.toLocaleString()}원
                   </span>
                 </div>
 

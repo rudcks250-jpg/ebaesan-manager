@@ -12,6 +12,7 @@ import { payrollRepository } from '@/repositories/payrollRepository';
 import type { Employee, WorkTimeRecord } from '@/data/types';
 
 const WITHHOLDING_RATE = 0.033; // 3.3% 원천징수
+const ZERO_MONTHLY_PAYROLL_EMPLOYEES = new Set(['박경찬', '김경재', '김하은']);
 
 export type PaydayStatus = 'today' | 'upcoming' | 'passed' | 'unknown';
 
@@ -59,6 +60,17 @@ export const payrollService = {
 
   calcGrossPay(hourlyWage: number, totalMinutes: number): number {
     return Math.round((totalMinutes / 60) * hourlyWage);
+  },
+
+  calcEmployeeGrossPay(
+    employee: Pick<Employee, 'name' | 'wageType' | 'hourlyWage' | 'monthlySalary'>,
+    totalMinutes: number
+  ): number {
+    if (employee.wageType === 'hourly') {
+      return this.calcGrossPay(employee.hourlyWage ?? 0, totalMinutes);
+    }
+    if (ZERO_MONTHLY_PAYROLL_EMPLOYEES.has(employee.name.trim())) return 0;
+    return employee.monthlySalary ?? 0;
   },
 
   calcNetPay(grossPay: number, employee: Pick<Employee, 'position'>): number {
@@ -132,10 +144,7 @@ export const payrollService = {
         const totalMinutes = workTimeService.sumMinutes(records);
         const totalDays = records.filter((r) => r.workedMinutes !== null).length;
 
-        const gross =
-          employee.wageType === 'hourly'
-            ? this.calcGrossPay(employee.hourlyWage ?? 0, totalMinutes)
-            : (employee.monthlySalary ?? 0);
+        const gross = this.calcEmployeeGrossPay(employee, totalMinutes);
         const deduction = this.calcEmployeeDeduction(employee, gross);
         const net = gross - deduction;
 
@@ -171,10 +180,7 @@ export const payrollService = {
     const totalMinutes = workTimeService.sumMinutes(records);
     const totalDays = records.filter((r) => r.workedMinutes !== null).length;
 
-    const gross =
-      employee.wageType === 'hourly'
-        ? this.calcGrossPay(employee.hourlyWage ?? 0, totalMinutes)
-        : (employee.monthlySalary ?? 0);
+    const gross = this.calcEmployeeGrossPay(employee, totalMinutes);
     const deduction = this.calcEmployeeDeduction(employee, gross);
     const net = gross - deduction;
 
