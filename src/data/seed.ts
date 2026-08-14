@@ -25,6 +25,7 @@ const LIQUOR_ITEMS: VendorItem[] = [
 ];
 
 const REMOVED_JIWOO_PRODUCT_NAMES = new Set(['미니깐마늘', '쇼리마늘']);
+const BOX_MEAT_PRODUCT_NAMES = new Set(['삼겹살', '목살', '껍데기', '항정살']);
 
 function migrateJiwooFoodItem(item: VendorItem): VendorItem | undefined {
   if (
@@ -93,12 +94,15 @@ function syncJiwooFoodCatalog(): void {
 
 function syncVendorCatalogs(): void {
   const meatVendor = vendorRepository.findById('vendor_meat');
-  if (meatVendor && !(meatVendor.items ?? []).some((item) => item.name === '껍데기')) {
+  if (meatVendor) {
+    const meatItems = (meatVendor.items ?? []).map((item) =>
+      BOX_MEAT_PRODUCT_NAMES.has(item.name) ? { ...item, unit: '박스' } : item
+    );
+    if (!meatItems.some((item) => item.name === '껍데기')) {
+      meatItems.push({ id: 'item_pork_skin', name: '껍데기', unit: '박스', defaultQty: 1 });
+    }
     vendorRepository.update(meatVendor.id, {
-      items: [
-        ...(meatVendor.items ?? []),
-        { id: 'item_pork_skin', name: '껍데기', unit: 'kg', defaultQty: 1 },
-      ],
+      items: meatItems,
     });
   }
 
