@@ -6,6 +6,8 @@ import { authService } from '@/services/authService';
 import { useToast } from '@/components/common/Toast';
 import { useAuth } from '@/contexts/AuthContext';
 
+const MIN_PASSWORD_LENGTH = 6;
+
 // 첫 로그인 시 어느 화면에 있든(라우트 이동과 무관하게) 표시되는
 // 전역 비밀번호 변경 모달입니다. App.tsx 최상위에서 렌더링합니다.
 export function PasswordChangeModal() {
@@ -19,8 +21,8 @@ export function PasswordChangeModal() {
   if (!session) return null;
 
   const handleSubmit = async () => {
-    if (password.length < 4) {
-      setError('비밀번호는 4자 이상 입력해주세요.');
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      setError(`비밀번호는 ${MIN_PASSWORD_LENGTH}자 이상 입력해주세요. 예: 000000`);
       return;
     }
     if (password !== confirm) {
@@ -31,8 +33,9 @@ export function PasswordChangeModal() {
       await authService.changePassword(session.employeeId, password);
       showToast('비밀번호가 변경되었습니다.');
       completePasswordChange();
-    } catch {
-      setError('비밀번호 변경에 실패했습니다. 다시 시도해주세요.');
+    } catch (changeError) {
+      console.error('[PasswordChange] failed', changeError);
+      setError('비밀번호 변경에 실패했습니다. 6자 이상으로 다시 입력해주세요.');
     }
   };
 
@@ -56,14 +59,22 @@ export function PasswordChangeModal() {
         label="새 비밀번호"
         type="password"
         value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        placeholder="4자 이상 입력"
+        minLength={MIN_PASSWORD_LENGTH}
+        onChange={(e) => {
+          setPassword(e.target.value);
+          setError('');
+        }}
+        placeholder="6자 이상 입력 (예: 000000)"
       />
       <Input
         label="새 비밀번호 확인"
         type="password"
         value={confirm}
-        onChange={(e) => setConfirm(e.target.value)}
+        minLength={MIN_PASSWORD_LENGTH}
+        onChange={(e) => {
+          setConfirm(e.target.value);
+          setError('');
+        }}
         error={error}
         placeholder="다시 한번 입력"
       />
