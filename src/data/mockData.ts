@@ -262,6 +262,8 @@ export const jiwooFoodItems: NonNullable<Vendor['items']> = [
   { id: 'item_miwon', name: '미원', unit: '봉', defaultQty: 1 },
   { id: 'item_dashida', name: '다시다', unit: '봉', defaultQty: 1 },
   { id: 'item_flavored_salt', name: '맛소금', unit: '봉', defaultQty: 1 },
+  { id: 'item_coarse_red_pepper_powder_1kg', name: '굵은 고춧가루', unit: '1kg', defaultQty: 2 },
+  { id: 'item_fine_red_pepper_powder_1kg', name: '고운 고춧가루', unit: '1kg', defaultQty: 1 },
   { id: 'item_kelp', name: '다시마', unit: '봉', defaultQty: 1 },
   { id: 'item_wasabi', name: '와사비', unit: '개', defaultQty: 1 },
   { id: 'item_anchovy_fish_sauce', name: '멸치액젓', unit: '병', defaultQty: 1 },

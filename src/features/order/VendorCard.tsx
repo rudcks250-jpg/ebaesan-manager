@@ -42,6 +42,8 @@ const JIWOO_FOOD_STANDARDS: Readonly<Record<string, { name: string; specificatio
   계란: { name: '계란(특란)', specification: '30입' },
   '고추가루(김치용)': { name: '고추가루(김치용)', specification: '2.5kg' },
   '고추가루(다데기)': { name: '고추가루(다데기)', specification: '2.5kg' },
+  '굵은 고춧가루': { name: '굵은 고춧가루', specification: '1kg' },
+  '고운 고춧가루': { name: '고운 고춧가루', specification: '1kg' },
   깐감자: { name: '깐감자', specification: '1kg' },
   깻잎: { name: '깻잎', specification: '1kg' },
   다진마늘: { name: '다진마늘', specification: '1kg' },
