@@ -145,6 +145,7 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
   const selectedCount = Object.values(selections).filter((s) => s.checked).length;
   const isKimchiVendor = vendor.id === 'vendor_fixed_kimchi';
   const isLpgVendor = vendor.id === 'vendor_fixed_lpg';
+  const isCoupangVendor = vendor.id === 'vendor_coupang';
   const showsDetailedRecentOrder = isKimchiVendor || isLpgVendor;
   const isSharedCompletionVendor =
     showsDetailedRecentOrder || vendor.id === 'vendor_fixed_charcoal';
@@ -541,8 +542,8 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
           <span>문자 내용 복사</span>
         </button>
       ) : (
-      <div className="grid grid-cols-2 gap-2 pt-1">
-        {usesKakaoShare ? (
+      <div className={`grid gap-2 pt-1 ${isCoupangVendor ? 'grid-cols-1' : 'grid-cols-2'}`}>
+        {!isCoupangVendor && (usesKakaoShare ? (
           <button
             onClick={handleKakaoShare}
             className="flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-[#FEE500] px-3 py-3.5 text-sm font-bold text-[#191919] press-scale"
@@ -558,7 +559,7 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
             <Smartphone size={19} />
             <span>문자 보내기</span>
           </button>
-        )}
+        ))}
         <button
           onClick={handleCopy}
           className="flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-brand-red-light px-3 py-3.5 text-sm font-bold text-brand-red press-scale"
