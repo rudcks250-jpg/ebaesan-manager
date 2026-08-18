@@ -2,7 +2,7 @@ import { storage, STORAGE_KEYS } from '@/data/storage';
 import { orderRepository } from '@/repositories/orderRepository';
 import { vendorRepository } from '@/repositories/vendorRepository';
 import { noticeRepository } from '@/repositories/noticeRepository';
-import { jiwooFoodItems, seedOrderItems, seedVendors } from '@/data/mockData';
+import { coupangItems, jiwooFoodItems, seedOrderItems, seedVendors } from '@/data/mockData';
 import type { Vendor, VendorItem } from '@/data/types';
 
 const BEVERAGE_ITEMS: VendorItem[] = [
@@ -93,6 +93,18 @@ function syncJiwooFoodCatalog(): void {
 }
 
 function syncVendorCatalogs(): void {
+  const coupangVendor = vendorRepository.findById('vendor_coupang');
+  if (coupangVendor) {
+    const existingItems = coupangVendor.items ?? [];
+    const existingNames = new Set(existingItems.map((item) => item.name));
+    const missingItems = coupangItems.filter((item) => !existingNames.has(item.name));
+    if (missingItems.length > 0) {
+      vendorRepository.update(coupangVendor.id, {
+        items: [...existingItems, ...missingItems],
+      });
+    }
+  }
+
   const meatVendor = vendorRepository.findById('vendor_meat');
   if (meatVendor) {
     const meatItems = (meatVendor.items ?? []).map((item) =>

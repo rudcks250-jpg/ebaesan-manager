@@ -300,6 +300,13 @@ export const jiwooFoodItems: NonNullable<Vendor['items']> = [
   { id: 'item_nitrile_gloves', name: '니트릴장갑 L', unit: 'L', defaultQty: 1 },
 ];
 
+export const coupangItems: NonNullable<Vendor['items']> = [
+  { id: 'item_coupang_cotton_gloves', name: '목장갑', unit: '켤레', defaultQty: 1 },
+  { id: 'item_coupang_peeled_potato', name: '깐감자', unit: 'kg', defaultQty: 1 },
+  { id: 'item_coupang_paper_towel', name: '페이퍼타올', unit: '박스', defaultQty: 1 },
+  { id: 'item_coupang_latex_gloves', name: '라텍스장갑', unit: '박스', defaultQty: 1 },
+];
+
 export const seedVendors: Vendor[] = [
   {
     id: 'vendor_coupang',
@@ -307,7 +314,7 @@ export const seedVendors: Vendor[] = [
     contactName: '',
     phone: '',
     type: 'quantity',
-    items: [],
+    items: coupangItems,
     createdAt: now,
     updatedAt: now,
   },
