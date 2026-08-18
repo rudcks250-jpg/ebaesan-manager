@@ -188,7 +188,7 @@ export const payrollService = {
     const base = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const daysUntilPay = Math.round((payDate.getTime() - base.getTime()) / 86400000);
 
-    return { employee, period, totalMinutes, totalDays, gross, deduction, net, daysUntilPay };
+    return { employee, period, records, totalMinutes, totalDays, gross, deduction, net, daysUntilPay };
   },
 
   async getEmployeePayroll(employeeId: string, year: number, month: number): Promise<EmployeePayroll | undefined> {

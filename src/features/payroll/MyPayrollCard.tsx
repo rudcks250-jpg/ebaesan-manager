@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
+import { Share2 } from 'lucide-react';
 import { Card } from '@/components/common/Card';
 import { payrollService } from '@/services/payrollService';
+import { PayrollShareModal } from '@/features/payroll/PayrollShareModal';
 
 /**
  * 직원 본인의 '현재 진행 중인 급여기간' 현황 카드.
@@ -9,6 +11,7 @@ import { payrollService } from '@/services/payrollService';
  */
 export function MyPayrollCard({ employeeId, refreshKey = 0 }: { employeeId: string; refreshKey?: number }) {
   const [payroll, setPayroll] = useState<Awaited<ReturnType<typeof payrollService.getCurrentPayroll>>>(undefined);
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     payrollService.getCurrentPayroll(employeeId).then(setPayroll);
@@ -62,6 +65,17 @@ export function MyPayrollCard({ employeeId, refreshKey = 0 }: { employeeId: stri
           </span>
         </div>
       </div>
+
+      <button
+        type="button"
+        onClick={() => setShareOpen(true)}
+        className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-brand-red px-4 py-3 text-sm font-bold text-white shadow-[0_6px_16px_-7px_rgba(0,122,255,.75)] press-scale"
+      >
+        <Share2 size={18} />
+        급여명세서 공유
+      </button>
+
+      {shareOpen && <PayrollShareModal payroll={payroll} onClose={() => setShareOpen(false)} />}
     </Card>
   );
 }
