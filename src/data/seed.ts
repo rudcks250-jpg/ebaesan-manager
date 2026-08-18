@@ -141,12 +141,13 @@ function syncVendorCatalogs(): void {
 
   const vendors = storage.get<Vendor[]>(STORAGE_KEYS.vendors) ?? [];
   const withoutSeedJeotgal = vendors.filter((vendor) => vendor.id !== 'vendor_fixed_sauce');
-  const lpgSeed = seedVendors.find((vendor) => vendor.id === 'vendor_fixed_lpg');
-  const withLpg = lpgSeed && !withoutSeedJeotgal.some((vendor) => vendor.id === lpgSeed.id)
-    ? [...withoutSeedJeotgal, lpgSeed]
-    : withoutSeedJeotgal;
-  if (JSON.stringify(withLpg) !== JSON.stringify(vendors)) {
-    storage.set(STORAGE_KEYS.vendors, withLpg);
+  const requiredVendorIds = new Set(['vendor_fixed_lpg', 'vendor_coupang']);
+  const missingVendors = seedVendors.filter(
+    (vendor) => requiredVendorIds.has(vendor.id) && !withoutSeedJeotgal.some((saved) => saved.id === vendor.id)
+  );
+  const nextVendors = [...withoutSeedJeotgal, ...missingVendors];
+  if (JSON.stringify(nextVendors) !== JSON.stringify(vendors)) {
+    storage.set(STORAGE_KEYS.vendors, nextVendors);
   }
 }
 

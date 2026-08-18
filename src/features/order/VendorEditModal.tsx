@@ -1,10 +1,11 @@
 import { useState } from 'react';
+import { Plus, Trash2 } from 'lucide-react';
 import { Modal } from '@/components/common/Modal';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
 import { vendorService } from '@/services/vendorService';
 import { useToast } from '@/components/common/Toast';
-import type { Vendor } from '@/data/types';
+import type { Vendor, VendorItem } from '@/data/types';
 
 interface VendorEditModalProps {
   vendor: Vendor;
@@ -17,17 +18,53 @@ export function VendorEditModal({ vendor, onClose, onSaved }: VendorEditModalPro
   const [name, setName] = useState(vendor.name);
   const [contactName, setContactName] = useState(vendor.contactName);
   const [phone, setPhone] = useState(vendor.phone);
+  const [items, setItems] = useState<VendorItem[]>(vendor.items ?? []);
   const [error, setError] = useState('');
 
   const handleSave = () => {
-    if (!name.trim() || !contactName.trim() || !phone.trim()) {
+    if (!name.trim()) {
+      setError('거래처명을 입력해주세요.');
+      return;
+    }
+    if (vendor.id !== 'vendor_coupang' && (!contactName.trim() || !phone.trim())) {
       setError('거래처명, 담당자명, 전화번호를 모두 입력해주세요.');
       return;
     }
-    vendorService.updateContact(vendor.id, name.trim(), contactName.trim(), phone.trim());
+    if (items.some((item) => !item.name.trim() || !item.unit.trim() || item.defaultQty < 1)) {
+      setError('품목명, 단위, 기본 수량을 올바르게 입력해주세요.');
+      return;
+    }
+    vendorService.update(vendor.id, {
+      name: name.trim(),
+      contactName: contactName.trim(),
+      phone: phone.replace(/\D/g, ''),
+      ...(vendor.id === 'vendor_coupang' ? { items } : {}),
+    });
     showToast('거래처 정보가 수정되었습니다.');
     onSaved();
     onClose();
+  };
+
+  const addItem = () => {
+    setItems((current) => [
+      ...current,
+      {
+        id: `item_coupang_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        name: '',
+        unit: '개',
+        defaultQty: 1,
+      },
+    ]);
+    setError('');
+  };
+
+  const updateItem = (id: string, patch: Partial<VendorItem>) => {
+    setItems((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+    setError('');
+  };
+
+  const removeItem = (id: string) => {
+    setItems((current) => current.filter((item) => item.id !== id));
   };
 
   return (
@@ -44,7 +81,78 @@ export function VendorEditModal({ vendor, onClose, onSaved }: VendorEditModalPro
     >
       <Input label="거래처명" value={name} onChange={(e) => setName(e.target.value)} placeholder="예: 식자재" />
       <Input label="담당자명" value={contactName} onChange={(e) => setContactName(e.target.value)} placeholder="예: 홍길동" />
-      <Input label="전화번호" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="010-0000-0000" error={error} />
+      <Input label="전화번호" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="010-0000-0000" />
+
+      {vendor.id === 'vendor_coupang' && (
+        <section className="mt-5 border-t border-black/[0.06] pt-5">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-bold text-ink">발주 품목</p>
+              <p className="mt-0.5 text-xs text-ink-faint">품목명, 단위, 기본 수량을 관리합니다.</p>
+            </div>
+            <button
+              type="button"
+              onClick={addItem}
+              className="flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl bg-brand-red-light px-3 text-sm font-bold text-brand-red press-scale"
+            >
+              <Plus size={16} /> 품목 추가
+            </button>
+          </div>
+
+          {items.length === 0 ? (
+            <div className="rounded-2xl bg-brand-beige-light px-4 py-6 text-center text-sm text-ink-faint">
+              등록된 품목이 없습니다. 품목 추가를 눌러 시작해주세요.
+            </div>
+          ) : (
+            <div className="max-h-[38vh] space-y-3 overflow-y-auto pr-1">
+              {items.map((item) => (
+                <div key={item.id} className="rounded-2xl border border-black/[0.07] bg-white p-3">
+                  <div className="grid grid-cols-[minmax(0,1fr)_72px_64px_40px] items-end gap-2">
+                    <label className="min-w-0 text-[11px] font-semibold text-ink-faint">
+                      품목명
+                      <input
+                        value={item.name}
+                        onChange={(event) => updateItem(item.id, { name: event.target.value })}
+                        placeholder="예: 생수"
+                        className="mt-1 h-10 w-full min-w-0 rounded-xl border border-black/[0.08] px-3 text-sm text-ink outline-none focus:border-brand-red"
+                      />
+                    </label>
+                    <label className="text-[11px] font-semibold text-ink-faint">
+                      단위
+                      <input
+                        value={item.unit}
+                        onChange={(event) => updateItem(item.id, { unit: event.target.value })}
+                        placeholder="개"
+                        className="mt-1 h-10 w-full rounded-xl border border-black/[0.08] px-2 text-center text-sm text-ink outline-none focus:border-brand-red"
+                      />
+                    </label>
+                    <label className="text-[11px] font-semibold text-ink-faint">
+                      기본
+                      <input
+                        type="number"
+                        min={1}
+                        value={item.defaultQty}
+                        onChange={(event) => updateItem(item.id, { defaultQty: Math.max(1, Number(event.target.value) || 1) })}
+                        className="mt-1 h-10 w-full rounded-xl border border-black/[0.08] px-2 text-center text-sm tabular-nums text-ink outline-none focus:border-brand-red"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => removeItem(item.id)}
+                      aria-label={`${item.name || '새 품목'} 삭제`}
+                      className="flex h-10 w-10 items-center justify-center rounded-xl bg-status-rejected-bg text-status-rejected press-scale"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {error && <p className="mt-3 text-sm font-semibold text-status-rejected">{error}</p>}
     </Modal>
   );
 }

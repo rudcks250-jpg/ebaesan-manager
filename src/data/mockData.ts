@@ -302,6 +302,16 @@ export const jiwooFoodItems: NonNullable<Vendor['items']> = [
 
 export const seedVendors: Vendor[] = [
   {
+    id: 'vendor_coupang',
+    name: '쿠팡',
+    contactName: '',
+    phone: '',
+    type: 'quantity',
+    items: [],
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
     id: 'vendor_grocery',
     name: '지우푸드',
     contactName: '김민수',
