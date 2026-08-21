@@ -380,7 +380,7 @@ export const seedVendors: Vendor[] = [
   },
   {
     id: 'vendor_fixed_kimchi',
-    name: '태서김치',
+    name: '묵은지 업체',
     contactName: '태서김치',
     phone: '01027491490',
     type: 'fixed',

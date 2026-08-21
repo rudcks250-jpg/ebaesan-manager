@@ -144,7 +144,7 @@ function syncVendorCatalogs(): void {
   const mugeunjiVendor = vendorRepository.findById('vendor_fixed_kimchi');
   if (mugeunjiVendor) {
     vendorRepository.update(mugeunjiVendor.id, {
-      name: '태서김치',
+      name: '묵은지 업체',
       contactName: '태서김치',
       phone: '01027491490',
       type: 'fixed',
