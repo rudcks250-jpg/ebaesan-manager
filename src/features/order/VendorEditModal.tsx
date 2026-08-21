@@ -13,12 +13,27 @@ interface VendorEditModalProps {
   onSaved: () => void;
 }
 
+function getEditableItems(vendor: Vendor): VendorItem[] {
+  if (vendor.items) return vendor.items;
+  if (!vendor.fixedOrder) return [];
+
+  return [
+    {
+      id: `item_${vendor.id}_fixed`,
+      name: vendor.fixedOrder.itemName,
+      unit: vendor.fixedOrder.unit,
+      defaultQty: vendor.fixedOrder.quantity,
+    },
+  ];
+}
+
 export function VendorEditModal({ vendor, onClose, onSaved }: VendorEditModalProps) {
   const { showToast } = useToast();
   const [name, setName] = useState(vendor.name);
   const [contactName, setContactName] = useState(vendor.contactName);
   const [phone, setPhone] = useState(vendor.phone);
-  const [items, setItems] = useState<VendorItem[]>(vendor.items ?? []);
+  const initialItems = getEditableItems(vendor);
+  const [items, setItems] = useState<VendorItem[]>(initialItems);
   const [error, setError] = useState('');
 
   const handleSave = () => {
@@ -26,19 +41,22 @@ export function VendorEditModal({ vendor, onClose, onSaved }: VendorEditModalPro
       setError('거래처명을 입력해주세요.');
       return;
     }
-    if (vendor.id !== 'vendor_coupang' && (!contactName.trim() || !phone.trim())) {
-      setError('거래처명, 담당자명, 전화번호를 모두 입력해주세요.');
-      return;
-    }
     if (items.some((item) => !item.name.trim() || !item.unit.trim() || item.defaultQty < 1)) {
       setError('품목명, 단위, 기본 수량을 올바르게 입력해주세요.');
       return;
     }
+    const itemsChanged = JSON.stringify(items) !== JSON.stringify(initialItems);
+    const itemPatch: Partial<Vendor> = vendor.type === 'quantity'
+      ? { items }
+      : itemsChanged
+        ? { type: 'quantity', items, fixedOrder: undefined }
+        : {};
+
     vendorService.update(vendor.id, {
       name: name.trim(),
       contactName: contactName.trim(),
       phone: phone.replace(/\D/g, ''),
-      ...(vendor.id === 'vendor_coupang' ? { items } : {}),
+      ...itemPatch,
     });
     showToast('거래처 정보가 수정되었습니다.');
     onSaved();
@@ -49,7 +67,7 @@ export function VendorEditModal({ vendor, onClose, onSaved }: VendorEditModalPro
     setItems((current) => [
       ...current,
       {
-        id: `item_coupang_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        id: `item_${vendor.id}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         name: '',
         unit: '개',
         defaultQty: 1,
@@ -83,8 +101,7 @@ export function VendorEditModal({ vendor, onClose, onSaved }: VendorEditModalPro
       <Input label="담당자명" value={contactName} onChange={(e) => setContactName(e.target.value)} placeholder="예: 홍길동" />
       <Input label="전화번호" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="010-0000-0000" />
 
-      {vendor.id === 'vendor_coupang' && (
-        <section className="mt-5 border-t border-black/[0.06] pt-5">
+      <section className="mt-5 border-t border-black/[0.06] pt-5">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-bold text-ink">발주 품목</p>
@@ -149,8 +166,7 @@ export function VendorEditModal({ vendor, onClose, onSaved }: VendorEditModalPro
               ))}
             </div>
           )}
-        </section>
-      )}
+      </section>
 
       {error && <p className="mt-3 text-sm font-semibold text-status-rejected">{error}</p>}
     </Modal>

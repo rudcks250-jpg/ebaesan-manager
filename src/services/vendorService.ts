@@ -10,7 +10,7 @@ function pad2(n: number): string {
 
 export const vendorService = {
   getDirectOrderMessage(vendor: Vendor): string | undefined {
-    return DIRECT_VENDOR_ORDER_MESSAGES[vendor.id];
+    return vendor.type === 'fixed' ? DIRECT_VENDOR_ORDER_MESSAGES[vendor.id] : undefined;
   },
 
   list(): Vendor[] {
