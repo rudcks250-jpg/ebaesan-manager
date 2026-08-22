@@ -70,7 +70,7 @@ function counterpartyFrom(line: string): string {
   return line
     .replace(/20\d{2}[./-]\d{1,2}[./-]\d{1,2}/g, ' ')
     .replace(/\d{1,2}:\d{2}(?::\d{2})?/g, ' ')
-    .replace(/(?:출금|지급|보낸금액|이체출금|잔액|거래후잔액|원)/g, ' ')
+    .replace(/(?:출금|입금|지급|보낸금액|이체출금|잔액|거래후잔액|원)/g, ' ')
     .replace(/-?\s*[\d,]{2,}/g, ' ')
     .replace(/[^가-힣A-Za-z0-9㈜()\s]/g, ' ')
     .replace(/\s+/g, ' ')
@@ -127,8 +127,18 @@ export async function recognizeExpenseImages(
         const line = lines[lineIndex];
         if (/입금/.test(line) && !/출금/.test(line)) continue;
         if (!/(출금|지급|보낸금액|이체출금)|-\s*[\d,]{2,}/.test(line)) continue;
-        // 은행 앱마다 날짜/금액/적요가 여러 줄로 나뉘므로 인접 행을 하나의 거래 블록으로 읽습니다.
-        const block = lines.slice(Math.max(0, lineIndex - 2), Math.min(lines.length, lineIndex + 3)).join(' ');
+        // 은행 앱마다 날짜/금액/적요가 여러 줄로 나뉘므로 날짜 경계를 넘지 않는 범위만 거래 블록으로 읽습니다.
+        const hasDate = Boolean(toLocalDate(line));
+        let blockStart = lineIndex;
+        if (!hasDate) {
+          for (let cursor = lineIndex - 1; cursor >= Math.max(0, lineIndex - 2); cursor -= 1) {
+            blockStart = cursor;
+            if (toLocalDate(lines[cursor])) break;
+          }
+        }
+        let blockEnd = lineIndex + 1;
+        while (blockEnd < Math.min(lines.length, lineIndex + 3) && !toLocalDate(lines[blockEnd])) blockEnd += 1;
+        const block = lines.slice(blockStart, blockEnd).join(' ');
         const date = toLocalDate(block);
         const actualAmount = amountFrom(line) || amountFrom(block);
         const counterparty = counterpartyFrom(block);
