@@ -16,6 +16,7 @@ import { NoticeManagementPage } from '@/features/notices/NoticeManagementPage';
 import { PrepaidManagementPage } from '@/features/prepaid/PrepaidManagementPage';
 import { ProfitLossPage } from '@/features/profitLoss/ProfitLossPage';
 import { canViewProfitLoss } from '@/utils/permission';
+import { EmployeeDiscountPage } from '@/features/discount/EmployeeDiscountPage';
 
 function TomorrowPrepRoute() {
   const { session } = useAuth();
@@ -149,6 +150,7 @@ export function AppRouter() {
             </RequireAuth>
           }
         />
+        <Route path="/employee-discount" element={<RequireAuth feature="employeeDiscount"><EmployeeDiscountPage /></RequireAuth>} />
         <Route
           path="/profit-loss"
           element={

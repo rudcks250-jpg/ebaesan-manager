@@ -12,6 +12,7 @@ export type FeatureKey =
   | 'notices'
   | 'prepayments'
   | 'profitLoss'
+  | 'employeeDiscount'
   | 'settings'
   | 'notifications';
 
@@ -28,6 +29,7 @@ const FEATURE_ACCESS: Record<FeatureKey, UserRole[]> = {
   notices: ['admin', 'manager', 'employee'],
   prepayments: ['admin', 'manager', 'employee'],
   profitLoss: ['admin', 'manager', 'employee'],
+  employeeDiscount: ['admin', 'manager', 'employee'],
   settings: ['admin', 'manager', 'employee'],
   notifications: ['admin'],
 };

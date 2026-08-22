@@ -15,6 +15,7 @@ import {
   Megaphone,
   CreditCard,
   ChartNoAxesCombined,
+  BadgePercent,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { canAccess, canAccessTomorrowPrep, canManageNotices, canViewProfitLoss, type FeatureKey } from '@/utils/permission';
@@ -31,6 +32,7 @@ const ADMIN_PRIMARY: NavItem[] = [
   { to: '/dashboard', label: '대시보드', icon: LayoutDashboard, feature: 'dashboard' },
   { to: '/schedule', label: '스케줄', icon: CalendarDays, feature: 'schedule' },
   { to: '/leave', label: '휴무신청', icon: Coffee, feature: 'leave' },
+  { to: '/employee-discount', label: '직원할인', icon: BadgePercent, feature: 'employeeDiscount' },
   { to: '/order', label: '발주관리', icon: Package, feature: 'order' },
   { to: '/employee', label: '직원관리', icon: Users, feature: 'employee' },
   { to: '/payroll', label: '급여관리', icon: Wallet, feature: 'payroll' },
@@ -180,6 +182,14 @@ export function BottomNav() {
                   <span className="text-xs font-semibold text-ink">내일 준비</span>
                 </button>
               )}
+
+              <button
+                onClick={() => { setMoreOpen(false); navigate('/employee-discount'); }}
+                className="flex flex-col items-center gap-1.5 py-4 rounded-2xl hover:bg-brand-beige-light press-scale"
+              >
+                <BadgePercent size={21} className="text-ink" strokeWidth={2} />
+                <span className="text-xs font-semibold text-ink">직원할인</span>
+              </button>
 
               {hasNoticeManagementAccess && (
                 <button

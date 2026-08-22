@@ -119,6 +119,34 @@ export interface PayrollSettlement {
 }
 
 // ---------------------------------------------------------
+// 직원 식사 할인
+// ---------------------------------------------------------
+export type EmployeeDiscountStatus = 'pending' | 'completed' | 'cancelled' | 'expired';
+
+export interface EmployeeDiscountSetting {
+  employeeId: string;
+  monthlyLimit: number;
+  discountRate: number;
+}
+
+export interface EmployeeDiscountRequest {
+  id: string;
+  employeeId: string;
+  employeeName?: string;
+  requestedAt: string;
+  expiresAt: string;
+  status: EmployeeDiscountStatus;
+  originalAmount?: number;
+  discountRate: number;
+  discountAmount?: number;
+  finalAmount?: number;
+  processedAt?: string;
+  processedBy?: string;
+  processedByName?: string;
+  restoredAt?: string;
+}
+
+// ---------------------------------------------------------
 // 발주관리 (기본 틀)
 // ---------------------------------------------------------
 export type OrderCategory = 'meat' | 'vegetable' | 'liquor' | 'supplies' | 'etc';
