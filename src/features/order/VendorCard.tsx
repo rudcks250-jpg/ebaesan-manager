@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   Copy,
   CheckCircle2,
-  ChevronDown,
+  ChevronRight,
   Pencil,
   Minus,
   Plus,
@@ -11,6 +11,8 @@ import {
   Smartphone,
   RotateCcw,
   History,
+  Search,
+  ArrowLeft,
 } from 'lucide-react';
 import { Card } from '@/components/common/Card';
 import { Modal } from '@/components/common/Modal';
@@ -127,7 +129,10 @@ function productDisplayParts(
 export function VendorCard({ vendor, onChanged }: VendorCardProps) {
   const { showToast } = useToast();
   const { session } = useAuth();
-  const [expanded, setExpanded] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [showAllItems, setShowAllItems] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [editOpen, setEditOpen] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
@@ -192,9 +197,23 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
   };
   const loadDefaults = () => {
     setSelections(vendorService.getDefaultSelections(vendor));
-    setExpanded(true);
     showToast('기본 발주 품목을 불러왔습니다.');
   };
+
+  const orderedItems = [...(vendor.items ?? [])].sort((a, b) => {
+    const aSelected = selections[a.id]?.checked ? 1 : 0;
+    const bSelected = selections[b.id]?.checked ? 1 : 0;
+    if (aSelected !== bSelected) return bSelected - aSelected;
+    return (b.defaultQty ?? 1) - (a.defaultQty ?? 1);
+  });
+  const normalizedSearch = searchQuery.trim().toLocaleLowerCase('ko-KR');
+  const searchedItems = normalizedSearch
+    ? orderedItems.filter((item) =>
+        productDisplayName(vendor.name, item.name).toLocaleLowerCase('ko-KR').includes(normalizedSearch),
+      )
+    : orderedItems;
+  const visibleItems = showAllItems || normalizedSearch ? searchedItems : searchedItems.slice(0, 6);
+  const hiddenItemCount = Math.max(0, searchedItems.length - visibleItems.length);
 
   const getOrderMessage = (): string => {
     return (
@@ -366,238 +385,212 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
     return `${dateText} ${timeText}`;
   };
 
-  const formatLpgRecentDate = (iso: string) => {
-    const date = new Date(iso);
-    const parts = new Intl.DateTimeFormat('ko-KR', {
-      timeZone: 'Asia/Seoul',
-      month: 'numeric',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    }).formatToParts(date);
-    const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? '';
-    return `${value('month')}월 ${value('day')}일 ${value('hour')}:${value('minute')}`;
+  const openPreview = () => {
+    if (!requireOrderMessage()) return;
+    setPreviewOpen(true);
+  };
+
+  const closeSheet = () => {
+    setSheetOpen(false);
+    setPreviewOpen(false);
+    setSearchQuery('');
+    setShowAllItems(false);
   };
 
   return (
-    <Card hover className="space-y-4">
-      {/* 헤더: 아이콘 + 거래처명 + 상태 + 수정 */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="card-icon w-11 h-11 rounded-2xl bg-gradient-to-br from-brand-red-light to-[#DDEEFF] flex items-center justify-center shrink-0">
+    <>
+      <Card
+        hover
+        padded={false}
+        role="button"
+        tabIndex={0}
+        onClick={() => setSheetOpen(true)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') setSheetOpen(true);
+        }}
+        className="cursor-pointer p-4 sm:p-5"
+      >
+        <div className="flex items-center gap-3">
+          <div className="card-icon flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-red-light to-[#DDEEFF]">
             <Store size={19} className="text-brand-red" />
           </div>
-          <div className="min-w-0">
-            <p className="text-lg font-bold text-ink truncate">{vendor.name}</p>
-            <span
-              className={`inline-flex items-center gap-1.5 text-xs font-semibold ${
-                ordered ? 'text-status-rejected' : 'text-status-working'
-              }`}
-            >
-              <span className={`w-1.5 h-1.5 rounded-full ${ordered ? 'bg-status-rejected' : 'bg-status-working'}`} />
-              {ordered ? '오늘 발주완료' : '미발주'}
-            </span>
-          </div>
-        </div>
-        <button
-          onClick={() => setEditOpen(true)}
-          aria-label={`${vendor.name} 담당자 및 전화번호 수정`}
-          className="shrink-0 w-10 h-10 flex items-center justify-center rounded-full text-ink-faint hover:bg-brand-beige-light press-scale"
-        >
-          <Pencil size={16} />
-        </button>
-      </div>
-
-      {!showsDetailedRecentOrder && (
-        <p className="text-xs text-ink-faint">마지막 발주 · {lastOrderText ?? '기록 없음'}</p>
-      )}
-
-      {showsDetailedRecentOrder && (
-        <div className="rounded-[20px] bg-[#F7F9FC] p-4 ring-1 ring-black/[0.04]">
-          <p className="text-[11px] font-semibold text-ink-faint">최근 발주</p>
-          {recentOrder ? (
-            <div className="mt-2 flex items-end justify-between gap-3">
-              <div>
-                {isLpgVendor ? (
-                  <p className="text-sm font-bold text-ink">
-                    {formatLpgRecentDate(recentOrder.completedAt)} · {recentOrder.completedByName} 발주 완료
-                  </p>
-                ) : (
-                  <>
-                    <p className="text-sm font-bold text-ink">{vendorService.formatLastOrder(recentOrder.completedAt)}</p>
-                    <p className="mt-1 text-sm font-semibold text-ink-soft">발주자 · {recentOrder.completedByName}</p>
-                  </>
-                )}
-              </div>
-              <span className="shrink-0 rounded-full bg-status-working-bg px-2.5 py-1 text-[10px] font-bold text-status-working">
-                발주 완료
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <p className="truncate text-base font-bold text-ink sm:text-lg">{vendor.name}</p>
+              <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-bold ${
+                ordered ? 'bg-emerald-50 text-emerald-700' : 'bg-brand-beige-light text-ink-faint'
+              }`}>
+                {ordered ? '발주완료' : '미발주'}
               </span>
             </div>
-          ) : (
-            <p className="mt-2 text-sm font-medium text-ink-faint">아직 발주 기록이 없습니다.</p>
-          )}
-        </div>
-      )}
-
-      {/* 직접 메시지형 거래처는 상품/수량/고정발주 영역을 렌더링하지 않습니다. */}
-      {isLpgVendor && (
-        <div className="rounded-2xl bg-status-working-bg px-4 py-3.5">
-          <p className="text-xs text-ink-faint mb-0.5">문자 발주</p>
-          <p className="font-bold text-ink tabular-num">가스 1통</p>
-        </div>
-      )}
-      {directOrderMessage && !isLpgVendor && (
-        <div className="rounded-2xl bg-brand-beige-light px-4 py-4 text-[14px] font-medium leading-relaxed text-ink">
-          {directOrderMessage}
-        </div>
-      )}
-      {!directOrderMessage && !isLpgVendor && (vendor.type === 'quantity' ? (
-        <div>
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-faint">
+              <span>{vendor.type === 'quantity' ? `${selectedCount}개 선택` : '고정 발주'}</span>
+              <span aria-hidden="true">·</span>
+              <span>마지막 발주 {recentOrder ? vendorService.formatLastOrder(recentOrder.completedAt) : (lastOrderText ?? '기록 없음')}</span>
+            </div>
+          </div>
           <button
-            onClick={() => setExpanded((v) => !v)}
-            className="w-full flex items-center justify-between text-sm font-semibold text-ink py-1"
+            onClick={(event) => {
+              event.stopPropagation();
+              setEditOpen(true);
+            }}
+            onKeyDown={(event) => event.stopPropagation()}
+            aria-label={`${vendor.name} 거래처 및 품목 수정`}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-faint hover:bg-brand-beige-light press-scale"
+          >
+            <Pencil size={16} />
+          </button>
+          <ChevronRight size={18} className="shrink-0 text-ink-faint" />
+        </div>
+      </Card>
+
+      <Modal
+        open={sheetOpen}
+        onClose={closeSheet}
+        title={previewOpen ? '발주 내용 미리보기' : vendor.name}
+        panelClassName="sm:max-w-2xl"
+        footer={!previewOpen ? (
+          <button
+            type="button"
+            onClick={openPreview}
+            disabled={vendor.type === 'quantity' && selectedCount === 0}
+            className="flex min-h-14 w-full items-center justify-between rounded-2xl bg-brand-red px-5 text-left text-white shadow-[0_8px_20px_-10px_rgba(0,122,255,.9)] press-scale disabled:cursor-not-allowed disabled:bg-ink-faint disabled:opacity-50"
           >
             <span>
-              품목 {vendor.items?.length ?? 0}개 {selectedCount > 0 && `· ${selectedCount}개 선택됨`}
+              <span className="block text-xs font-semibold opacity-80">
+                {vendor.type === 'quantity' ? `${selectedCount}개 품목 선택` : '고정 발주 내용'}
+              </span>
+              <span className="mt-0.5 block text-base font-bold">발주 예정 내용 확인</span>
             </span>
-            <ChevronDown size={16} className={`text-ink-faint transition-transform ${expanded ? 'rotate-180' : ''}`} />
+            <ChevronRight size={20} />
           </button>
-          <button
-            onClick={loadDefaults}
-            className="w-full text-sm font-bold text-brand-red bg-brand-red-light border border-brand-red/10 rounded-2xl py-3 mt-3 press-scale hover:-translate-y-0.5"
-          >
-            기본 발주 불러오기
-          </button>
-          {expanded && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 pt-4">
-              {(vendor.items ?? []).map((item) => {
-                const sel = selections[item.id];
-                const display = productDisplayParts(vendor.name, item.name);
-                return (
-                  <div
-                    key={item.id}
-                    className="min-h-[128px] h-full flex flex-col justify-between gap-5 rounded-2xl bg-white border border-black/[0.07] px-4 py-4 sm:px-5 shadow-[0_1px_2px_rgba(0,0,0,.025),0_8px_24px_-18px_rgba(0,0,0,.24)] transition-all duration-200 hover:-translate-y-0.5 hover:border-black/[0.1] hover:shadow-[0_2px_4px_rgba(0,0,0,.035),0_14px_30px_-18px_rgba(0,0,0,.3)]"
-                  >
-                    <label className="flex items-center gap-3 min-w-0 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={sel?.checked ?? false}
-                        onChange={() => toggleCheck(item.id)}
-                        className="w-5 h-5 accent-brand-red shrink-0 cursor-pointer"
-                      />
-                      <span className="min-w-0 leading-snug">
-                        <span className="font-bold text-[15px] text-ink">{display.name}</span>
-                        {display.specification && (
-                          <span className="ml-1.5 text-sm font-medium text-ink-faint">
-                            ({display.specification})
-                          </span>
-                        )}
-                      </span>
-                    </label>
-                    <div className="flex items-center justify-end gap-2 shrink-0 self-end">
-                      <button
-                        onClick={() => setQty(item.id, (sel?.qty ?? 1) - 1)}
-                        aria-label={`${display.name} 수량 줄이기`}
-                        className="w-9 h-9 rounded-xl bg-brand-beige-light text-ink flex items-center justify-center press-scale hover:bg-brand-beige"
-                      >
-                        <Minus size={13} />
-                      </button>
-                      <input
-                        type="number"
-                        value={sel?.qty ?? 1}
-                        onChange={(e) => setQty(item.id, Number(e.target.value) || 1)}
-                        aria-label={`${display.name} 수량`}
-                        className="w-12 h-9 text-center rounded-xl border border-black/[0.07] bg-white text-sm tabular-num"
-                      />
-                      <button
-                        onClick={() => setQty(item.id, (sel?.qty ?? 1) + 1)}
-                        aria-label={`${display.name} 수량 늘리기`}
-                        className="w-9 h-9 rounded-xl bg-brand-beige-light text-ink flex items-center justify-center press-scale hover:bg-brand-beige"
-                      >
-                        <Plus size={13} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="rounded-2xl bg-status-working-bg px-4 py-3.5">
-          <p className="text-xs text-ink-faint mb-0.5">매주 고정 발주</p>
-          <p className="font-bold text-ink tabular-num">
-            {vendor.fixedOrder?.itemName} {vendor.fixedOrder?.quantity}{vendor.fixedOrder?.unit}
-          </p>
-        </div>
-      ))}
-
-      {isLpgVendor ? (
-        <button
-          onClick={handleCopy}
-          className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-brand-red-light px-3 py-3.5 text-sm font-bold text-brand-red press-scale"
-        >
-          <Copy size={19} />
-          <span>문자 내용 복사</span>
-        </button>
-      ) : (
-      <div className={`grid gap-2 pt-1 ${isCoupangVendor ? 'grid-cols-1' : 'grid-cols-2'}`}>
-        {!isCoupangVendor && (usesKakaoShare ? (
-          <button
-            onClick={handleKakaoShare}
-            className="flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-[#FEE500] px-3 py-3.5 text-sm font-bold text-[#191919] press-scale"
-          >
-            <MessageCircle size={19} />
-            <span>카카오톡 공유</span>
-          </button>
-        ) : (
-          <button
-            onClick={handleSms}
-            className="flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-brand-red px-3 py-3.5 text-sm font-bold text-white press-scale"
-          >
-            <Smartphone size={19} />
-            <span>문자 보내기</span>
-          </button>
-        ))}
-        <button
-          onClick={handleCopy}
-          className="flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-brand-red-light px-3 py-3.5 text-sm font-bold text-brand-red press-scale"
-        >
-          <Copy size={19} />
-          <span>내용 복사</span>
-        </button>
-      </div>
-      )}
-
-      <button
-        onClick={ordered ? () => setCancelConfirmOpen(true) : handleMarkOrdered}
-        disabled={completing}
-        className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl px-3 py-3 text-sm font-bold text-white press-scale disabled:opacity-50 ${
-          ordered ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-brand-red hover:bg-brand-red/90'
-        }`}
+        ) : undefined}
       >
-        {ordered ? <RotateCcw size={18} /> : <CheckCircle2 size={18} />}
-        <span>
-          {completing ? '처리 중...' : ordered ? (isLpgVendor ? '발주 완료 취소' : '✔ 발주 완료 (취소)') : '발주 완료'}
-        </span>
-      </button>
+        {previewOpen ? (
+          <div className="space-y-4 pb-6">
+            <button
+              type="button"
+              onClick={() => setPreviewOpen(false)}
+              className="inline-flex min-h-10 items-center gap-1 text-sm font-bold text-brand-red"
+            >
+              <ArrowLeft size={17} /> 품목 다시 선택
+            </button>
+            <div className="rounded-[22px] bg-brand-beige-light p-5">
+              <p className="mb-2 text-xs font-bold text-ink-faint">발주 예정 내용</p>
+              <pre className="whitespace-pre-wrap font-sans text-[15px] font-semibold leading-7 text-ink">{getOrderMessage()}</pre>
+            </div>
 
-      {isLpgVendor && (
-        <button
-          onClick={handleOpenHistory}
-          className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-black/[0.07] bg-white px-3 py-3 text-sm font-bold text-ink-soft press-scale"
-        >
-          <History size={18} />
-          발주 이력 보기
-        </button>
-      )}
+            {isLpgVendor ? (
+              <button onClick={handleCopy} className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-brand-red-light text-sm font-bold text-brand-red press-scale">
+                <Copy size={19} /> 문자 내용 복사
+              </button>
+            ) : (
+              <div className={`grid gap-2 ${isCoupangVendor ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                {!isCoupangVendor && (usesKakaoShare ? (
+                  <button onClick={handleKakaoShare} className="flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-[#FEE500] px-3 text-sm font-bold text-[#191919] press-scale">
+                    <MessageCircle size={19} /> 카카오톡 공유
+                  </button>
+                ) : (
+                  <button onClick={handleSms} className="flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-brand-red px-3 text-sm font-bold text-white press-scale">
+                    <Smartphone size={19} /> 문자 보내기
+                  </button>
+                ))}
+                <button onClick={handleCopy} className="flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-brand-red-light px-3 text-sm font-bold text-brand-red press-scale">
+                  <Copy size={19} /> 내용 복사
+                </button>
+              </div>
+            )}
 
-      {(vendor.contactName || phoneDisplay) && (
-        <p className="text-[11px] text-ink-faint text-center -mt-1">
-          {[vendor.contactName, phoneDisplay].filter(Boolean).join(' · ')}
-        </p>
-      )}
+            <button
+              onClick={ordered ? () => setCancelConfirmOpen(true) : handleMarkOrdered}
+              disabled={completing}
+              className={`flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl px-3 text-sm font-bold text-white press-scale disabled:opacity-50 ${
+                ordered ? 'bg-emerald-600' : 'bg-brand-red'
+              }`}
+            >
+              {ordered ? <RotateCcw size={18} /> : <CheckCircle2 size={18} />}
+              {completing ? '처리 중...' : ordered ? '✔ 발주 완료 (취소)' : '발주 완료'}
+            </button>
+
+            {isLpgVendor && (
+              <button onClick={handleOpenHistory} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-black/[0.07] bg-white text-sm font-bold text-ink-soft press-scale">
+                <History size={18} /> 발주 이력 보기
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-4 pb-5">
+            <div className="flex items-center justify-between rounded-2xl bg-brand-beige-light px-4 py-3">
+              <div>
+                <p className={`text-sm font-bold ${ordered ? 'text-emerald-700' : 'text-ink'}`}>{ordered ? '오늘 발주완료' : '오늘 미발주'}</p>
+                <p className="mt-0.5 text-xs text-ink-faint">마지막 발주 · {recentOrder ? vendorService.formatLastOrder(recentOrder.completedAt) : (lastOrderText ?? '기록 없음')}</p>
+              </div>
+              <span className="text-sm font-bold text-brand-red">{vendor.type === 'quantity' ? `${selectedCount}개 선택` : '고정 발주'}</span>
+            </div>
+
+            {vendor.type === 'quantity' ? (
+              <>
+                <button onClick={loadDefaults} className="min-h-12 w-full rounded-2xl border border-brand-red/10 bg-brand-red-light text-sm font-bold text-brand-red press-scale">
+                  기본 발주 불러오기
+                </button>
+                <label className="relative block">
+                  <Search size={17} className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-faint" />
+                  <input
+                    type="search"
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder="품목 검색"
+                    className="h-12 w-full rounded-2xl border border-black/[0.07] bg-white pl-11 pr-4 text-sm text-ink outline-none focus:border-brand-red"
+                  />
+                </label>
+
+                <div className="divide-y divide-black/[0.05] rounded-[22px] border border-black/[0.06] bg-white px-3 sm:px-4">
+                  {visibleItems.map((item) => {
+                    const sel = selections[item.id];
+                    const display = productDisplayParts(vendor.name, item.name);
+                    return (
+                      <div key={item.id} className="grid min-h-16 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 py-2.5">
+                        <label className="flex min-w-0 cursor-pointer items-center gap-3">
+                          <input type="checkbox" checked={sel?.checked ?? false} onChange={() => toggleCheck(item.id)} className="h-5 w-5 shrink-0 accent-brand-red" />
+                          <span className="min-w-0 leading-tight">
+                            <span className="block truncate text-sm font-bold text-ink sm:text-[15px]">{display.name}</span>
+                            <span className="mt-1 block truncate text-xs font-medium text-ink-faint">{display.specification || item.unit}</span>
+                          </span>
+                        </label>
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          <button type="button" onClick={() => setQty(item.id, (sel?.qty ?? 1) - 1)} aria-label={`${display.name} 수량 줄이기`} className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-beige-light text-ink press-scale">
+                            <Minus size={14} />
+                          </button>
+                          <input type="number" min={1} value={sel?.qty ?? 1} onChange={(event) => setQty(item.id, Number(event.target.value) || 1)} aria-label={`${display.name} 수량`} className="h-9 w-10 rounded-xl border border-black/[0.07] text-center text-sm font-bold tabular-nums text-ink" />
+                          <button type="button" onClick={() => setQty(item.id, (sel?.qty ?? 1) + 1)} aria-label={`${display.name} 수량 늘리기`} className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-beige-light text-ink press-scale">
+                            <Plus size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {visibleItems.length === 0 && <p className="py-8 text-center text-sm font-medium text-ink-faint">검색 결과가 없습니다.</p>}
+                </div>
+
+                {!normalizedSearch && searchedItems.length > 6 && (
+                  <button type="button" onClick={() => setShowAllItems((current) => !current)} className="min-h-11 w-full rounded-xl text-sm font-bold text-brand-red press-scale">
+                    {showAllItems ? '자주 쓰는 품목만 보기' : `전체 품목 보기 (+${hiddenItemCount})`}
+                  </button>
+                )}
+              </>
+            ) : (
+              <div className="rounded-[22px] bg-brand-beige-light p-5">
+                <p className="text-xs font-bold text-ink-faint">고정 발주 내용</p>
+                <p className="mt-2 whitespace-pre-wrap text-[15px] font-semibold leading-7 text-ink">{getOrderMessage()}</p>
+              </div>
+            )}
+
+            {(vendor.contactName || phoneDisplay) && (
+              <p className="text-center text-xs text-ink-faint">{[vendor.contactName, phoneDisplay].filter(Boolean).join(' · ')}</p>
+            )}
+          </div>
+        )}
+      </Modal>
 
       {editOpen && <VendorEditModal vendor={vendor} onClose={() => setEditOpen(false)} onSaved={onChanged} />}
 
@@ -642,6 +635,6 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
           )}
         </Modal>
       )}
-    </Card>
+    </>
   );
 }

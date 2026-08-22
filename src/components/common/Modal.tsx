@@ -8,9 +8,10 @@ interface ModalProps {
   title: string;
   children: ReactNode;
   footer?: ReactNode;
+  panelClassName?: string;
 }
 
-export function Modal({ open, onClose, title, children, footer }: ModalProps) {
+export function Modal({ open, onClose, title, children, footer, panelClassName = '' }: ModalProps) {
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -33,7 +34,7 @@ export function Modal({ open, onClose, title, children, footer }: ModalProps) {
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="relative w-full sm:max-w-md bg-surface rounded-t-[28px] sm:rounded-[24px] max-h-[88vh] flex flex-col animate-sheet-in shadow-premium-lg border border-white/70"
+        className={`relative w-full bg-surface rounded-t-[28px] sm:rounded-[24px] max-h-[88vh] flex flex-col animate-sheet-in shadow-premium-lg border border-white/70 ${panelClassName || 'sm:max-w-md'}`}
       >
         <div className="flex items-center justify-between px-6 pt-6 pb-3 shrink-0">
           <h2 className="text-xl font-bold tracking-tight text-ink">{title}</h2>
