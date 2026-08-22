@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Camera, ChevronDown, ChevronLeft, ChevronRight, ImageDown, Pencil, Plus, Share2, Trash2, TrendingDown, TrendingUp, X } from 'lucide-react';
+import { Camera, ChevronDown, ChevronLeft, ChevronRight, ImageDown, Pencil, Plus, ReceiptText, Share2, Trash2, TrendingDown, TrendingUp, X } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { Card } from '@/components/common/Card';
 import { Button } from '@/components/common/Button';
@@ -13,6 +13,8 @@ import { supabase } from '@/lib/supabaseClient';
 import { employeeService } from '@/services/employeeService';
 import { ProfitLossReport } from '@/features/profitLoss/ProfitLossReport';
 import { exportReportPngs, shareReportPages } from '@/features/profitLoss/profitLossReportExport';
+import { ExpenseImportModal } from '@/features/profitLoss/ExpenseImportModal';
+import { rememberAppliedFingerprints, type ParsedExpense } from '@/features/profitLoss/expenseOcr';
 import type { Employee } from '@/data/types';
 
 type AmountMap = Record<string, number>;
@@ -26,6 +28,7 @@ interface MonthlyProfitLoss {
   operations: AmountMap;
   fixedCosts: AmountMap;
   taxReserve: number;
+  withholdingPayable?: number;
   memo: string;
   updatedAt: string;
 }
@@ -54,6 +57,7 @@ function emptyMonth(employeeNames: string[] = []): MonthlyProfitLoss {
     operations: emptyMap(OPERATIONS),
     fixedCosts: emptyMap(FIXED_COSTS),
     taxReserve: 0,
+    withholdingPayable: 0,
     memo: '',
     updatedAt: new Date().toISOString(),
   };
@@ -253,6 +257,7 @@ export function ProfitLossPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('overview');
   const [openSection, setOpenSection] = useState<DetailSection | null>(null);
   const [costAnalysisOpen, setCostAnalysisOpen] = useState(false);
+  const [expenseImportOpen, setExpenseImportOpen] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const employeeNames = employees.map((employee) => employee.name);
@@ -443,6 +448,44 @@ export function ProfitLossPage() {
       setReportBusy(null);
     }
   };
+
+  const handleApplyExpenses = async (items: ParsedExpense[]) => {
+    if (!session || !items.length) return;
+    const nextData = { ...allData };
+    const targetField = (category: ParsedExpense['category']): SectionField | null => {
+      if (category === '원가') return 'food';
+      if (category === '인건비') return 'labor';
+      if (category === '고정비' || category === '공과금') return 'fixedCosts';
+      if (category === '광고비') return 'ads';
+      if (category === '기타비용') return 'operations';
+      return null;
+    };
+    for (const item of items) {
+      const key = item.date.slice(0, 7);
+      if (!/^\d{4}-\d{2}$/.test(key)) throw new Error('유효하지 않은 거래일입니다.');
+      const monthData = normalizeMonth(nextData[key], employeeNames);
+      const field = targetField(item.category);
+      if (field) {
+        const label = item.counterparty.trim() || 'OCR 가져오기';
+        monthData[field] = { ...monthData[field], [label]: (monthData[field][label] ?? 0) + item.appliedAmount };
+      }
+      if (item.withholdingAmount) monthData.withholdingPayable = (monthData.withholdingPayable ?? 0) + item.withholdingAmount;
+      monthData.updatedAt = new Date().toISOString();
+      nextData[key] = monthData;
+    }
+    const affectedMonths = [...new Set(items.map((item) => item.date.slice(0, 7)))];
+    const payload = affectedMonths.map((key) => ({ year_month: key, data: nextData[key], updated_by: session.employeeId }));
+    const { error } = await supabase.from('profit_loss_months').upsert(payload);
+    if (error) {
+      console.error('[ExpenseImport] apply failed', error);
+      showToast('지출내역 반영에 실패했습니다. 다시 시도해주세요.', 'error');
+      return;
+    }
+    setAllData(nextData);
+    rememberAppliedFingerprints(items.map((item) => item.fingerprint));
+    setExpenseImportOpen(false);
+    showToast(`${items.length}건의 지출내역을 손익계산서에 반영했습니다.`);
+  };
   const overviewCards = [
     { label: '총매출', value: current.sales, previous: previous.sales, accent: 'text-brand-red' },
     { label: '영업이익', value: totals.finalOperatingProfit, previous: previousTotals.finalOperatingProfit, accent: totals.finalOperatingProfit >= 0 ? 'text-ink' : 'text-red-500' },
@@ -486,6 +529,13 @@ export function ProfitLossPage() {
             ))}
           </div>
         </Card>
+
+        {isAdmin && (
+          <button type="button" onClick={() => setExpenseImportOpen(true)} className="flex min-h-12 w-full items-center justify-between rounded-2xl border border-brand-red/15 bg-white px-4 text-left shadow-sm press-scale">
+            <span className="flex items-center gap-2 text-sm font-bold text-ink"><ReceiptText size={18} className="text-brand-red" /> 지출내역 캡처 가져오기</span>
+            <span className="text-xs font-semibold text-ink-faint">무료 브라우저 OCR</span>
+          </button>
+        )}
 
         <button
           type="button"
@@ -585,6 +635,10 @@ export function ProfitLossPage() {
                 <span className="text-xs font-semibold text-ink-soft">전월 세금예비금</span>
                 <span className="font-bold tabular-nums text-ink">{won(current.taxReserve)}</span>
               </button>
+              <div className="mt-3 flex min-h-12 items-center justify-between rounded-xl bg-amber-50 px-4">
+                <span className="text-xs font-semibold text-amber-800">3.3% 원천세 예수금 (비용 합계 제외)</span>
+                <span className="font-bold tabular-nums text-amber-900">{won(current.withholdingPayable ?? 0)}</span>
+              </div>
               <div className="mt-5">
                 <h3 className="mb-3 text-sm font-bold text-ink">관리자 메모</h3>
                 <Textarea value={current.memo} onChange={(event) => update({ memo: event.target.value })} placeholder={`${year}년 ${month}월 특이사항을 입력하세요.`} />
@@ -638,6 +692,8 @@ export function ProfitLossPage() {
         onConfirm={confirmDeleteItem}
         onClose={() => setDeleteItem(null)}
       />
+
+      <ExpenseImportModal open={expenseImportOpen} employees={employees} onClose={() => setExpenseImportOpen(false)} onApply={handleApplyExpenses} />
 
       {reportOpen && (
         <div className="fixed inset-0 z-50 flex flex-col bg-black/45 backdrop-blur-sm">
