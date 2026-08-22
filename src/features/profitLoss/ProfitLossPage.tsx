@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, ChevronLeft, ChevronRight, ImageDown, Pencil, Plus, Share2, Trash2, TrendingDown, TrendingUp, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Camera, ChevronDown, ChevronLeft, ChevronRight, ImageDown, Pencil, Plus, Share2, Trash2, TrendingDown, TrendingUp, X } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { Card } from '@/components/common/Card';
 import { Button } from '@/components/common/Button';
@@ -182,49 +182,50 @@ function AddItemButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-function ExpenseSection({
+function DetailAccordion({
   title,
-  values,
-  sales,
-  previousTotal,
-  defaultKeys,
-  canEdit,
-  onChange,
-  onAddItem,
-  onEditItem,
-  onDeleteItem,
+  total,
+  ratio,
+  currentTrend,
+  previousTrend,
+  open,
+  onToggle,
+  children,
 }: {
   title: string;
-  values: AmountMap;
-  sales: number;
-  previousTotal: number;
-  defaultKeys: string[];
-  canEdit: boolean;
-  onChange: (key: string, value: number) => void;
-  onAddItem: () => void;
-  onEditItem: (key: string) => void;
-  onDeleteItem: (key: string) => void;
+  total: number;
+  ratio?: number;
+  currentTrend?: number;
+  previousTrend?: number;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
 }) {
-  const total = sum(values);
   return (
-    <Card>
-      <div className="mb-5 flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-bold text-ink">{title}</h2>
-          <Trend current={total} previous={previousTotal} />
-        </div>
-        <div className="text-right">
-          <p className="text-xl font-bold text-ink">{won(total)}</p>
-          <p className="text-xs font-semibold text-ink-faint">매출 대비 {ratioText(percent(total, sales))}</p>
-        </div>
-      </div>
-      <CustomItemGrid values={values} defaultKeys={defaultKeys} canEdit={canEdit} onChange={onChange} onEditItem={onEditItem} onDeleteItem={onDeleteItem} />
-      {canEdit && <AddItemButton onClick={onAddItem} />}
+    <Card padded={false} className="overflow-hidden">
+      <button type="button" onClick={onToggle} className="flex min-h-16 w-full items-center justify-between gap-3 px-4 py-3 text-left sm:px-5">
+        <span className="min-w-0">
+          <span className="block text-base font-bold text-ink">{title}</span>
+          {currentTrend !== undefined && previousTrend !== undefined && (
+            <span className="mt-0.5 block"><Trend current={currentTrend} previous={previousTrend} /></span>
+          )}
+        </span>
+        <span className="flex shrink-0 items-center gap-3 text-right">
+          <span>
+            <span className="block text-base font-bold tabular-nums text-ink">{won(total)}</span>
+            {ratio !== undefined && <span className="block text-[11px] font-semibold text-ink-faint">매출 대비 {ratioText(ratio)}</span>}
+          </span>
+          <ChevronDown size={18} className={`text-ink-faint transition-transform ${open ? 'rotate-180' : ''}`} />
+        </span>
+      </button>
+      {open && <div className="border-t border-black/[0.05] px-4 pb-5 pt-4 sm:px-5">{children}</div>}
     </Card>
   );
 }
 
 type SectionField = 'food' | 'drinks' | 'labor' | 'ads' | 'operations' | 'fixedCosts';
+type ViewMode = 'overview' | 'details';
+type DetailSection = 'sales' | 'cost' | 'labor' | 'fixedCosts' | 'ads' | 'operations' | 'tax';
 
 interface ItemModalState {
   field: SectionField;
@@ -249,11 +250,18 @@ export function ProfitLossPage() {
   const [taxAmount, setTaxAmount] = useState(0);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportBusy, setReportBusy] = useState<'png' | 'share' | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('overview');
+  const [openSection, setOpenSection] = useState<DetailSection | null>(null);
+  const [costAnalysisOpen, setCostAnalysisOpen] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const employeeNames = employees.map((employee) => employee.name);
   const current = normalizeMonth(allData[selectedMonth], employeeNames);
   const previous = normalizeMonth(allData[shiftMonth(selectedMonth, -1)], employeeNames);
+
+  const toggleSection = (section: DetailSection) => {
+    setOpenSection((currentSection) => currentSection === section ? null : section);
+  };
 
   useEffect(() => {
     void employeeService.listActive().then(setEmployees).catch(() => setEmployees([]));
@@ -435,13 +443,17 @@ export function ProfitLossPage() {
       setReportBusy(null);
     }
   };
-  const cards = [
-    { label: '영업이익', value: totals.finalOperatingProfit, previous: previousTotals.finalOperatingProfit },
-    { label: '영업이익률', value: percent(totals.finalOperatingProfit, current.sales), previous: percent(previousTotals.finalOperatingProfit, previous.sales), percent: true },
-    { label: '원가율', value: percent(totals.cost, current.sales), previous: percent(previousTotals.food + previousTotals.drinks, previous.sales), percent: true },
-    { label: '인건비율', value: percent(totals.labor, current.sales), previous: percent(previousTotals.labor, previous.sales), percent: true },
-    { label: '광고비율', value: percent(totals.ads, current.sales), previous: percent(previousTotals.ads, previous.sales), percent: true },
-    { label: '현재 순이익률', value: percent(totals.netProfit, current.sales), previous: percent(previousTotals.netProfit, previous.sales), percent: true },
+  const overviewCards = [
+    { label: '총매출', value: current.sales, previous: previous.sales, accent: 'text-brand-red' },
+    { label: '영업이익', value: totals.finalOperatingProfit, previous: previousTotals.finalOperatingProfit, accent: totals.finalOperatingProfit >= 0 ? 'text-ink' : 'text-red-500' },
+    { label: '현재 순이익', value: totals.netProfit, previous: previousTotals.netProfit, accent: totals.netProfit >= 0 ? 'text-emerald-600' : 'text-red-500' },
+    {
+      label: '영업이익률',
+      value: percent(totals.finalOperatingProfit, current.sales),
+      previous: percent(previousTotals.finalOperatingProfit, previous.sales),
+      percent: true,
+      accent: totals.finalOperatingProfit >= 0 ? 'text-ink' : 'text-red-500',
+    },
   ];
 
   return (
@@ -449,119 +461,142 @@ export function ProfitLossPage() {
       {!loaded ? (
         <div className="flex min-h-64 items-center justify-center"><Spinner /></div>
       ) : (
-      <div className="space-y-5">
-        <Card className="sticky top-3 z-20">
-          <div className="flex items-center justify-between gap-2">
-            <Button size="sm" variant="ghost" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))}><ChevronLeft size={17} /> 이전달</Button>
-            <p className="text-xl font-bold text-ink">{year}년 {month}월</p>
-            <Button size="sm" variant="ghost" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))}>다음달 <ChevronRight size={17} /></Button>
+      <div className="space-y-4">
+        <Card padded={false} className="sticky top-3 z-20 overflow-hidden p-3 sm:p-4">
+          <div className="flex items-center gap-1.5 sm:gap-3">
+            <button type="button" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))} aria-label="이전달" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-ink-soft hover:bg-brand-beige-light press-scale">
+              <ChevronLeft size={19} />
+            </button>
+            <p className="min-w-0 flex-1 text-center text-base font-bold text-ink sm:text-xl">{year}년 {month}월</p>
+            <button type="button" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))} aria-label="다음달" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-ink-soft hover:bg-brand-beige-light press-scale">
+              <ChevronRight size={19} />
+            </button>
+            <button type="button" onClick={() => setReportOpen(true)} className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-brand-red px-3 text-xs font-bold text-white press-scale sm:px-4 sm:text-sm">
+              <Camera size={15} /> 공유
+            </button>
           </div>
-          <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
-            <span className={`mr-3 self-center text-xs font-semibold ${saveState === 'error' ? 'text-red-500' : 'text-ink-faint'}`}>
-              {saveState === 'saving' ? '저장 중…' : saveState === 'saved' ? '자동 저장됨' : saveState === 'error' ? '저장 실패' : ''}
-            </span>
-            <Button size="sm" variant="secondary" onClick={() => setReportOpen(true)}>
-              <span className="flex items-center gap-1"><Camera size={14} /> 이번달 손익계산서 공유하기</span>
-            </Button>
+          <div className="mt-3 grid grid-cols-2 rounded-xl bg-brand-beige-light p-1">
+            {([
+              ['overview', '한눈에 보기'],
+              ['details', '상세 입력'],
+            ] as const).map(([key, label]) => (
+              <button key={key} type="button" onClick={() => setViewMode(key)} className={`min-h-9 rounded-lg text-sm font-bold transition ${viewMode === key ? 'bg-white text-brand-red shadow-sm' : 'text-ink-faint'}`}>
+                {label}
+              </button>
+            ))}
           </div>
         </Card>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {cards.map((card) => (
-            <Card key={card.label}>
-              <p className="text-xs font-semibold text-ink-faint">{card.label}</p>
-              <p className={`mt-2 text-2xl font-bold ${card.value >= 0 ? 'text-ink' : 'text-red-500'}`}>
-                {card.percent ? ratioText(card.value) : won(card.value)}
-              </p>
-              {card.previous !== undefined && <Trend current={card.value} previous={card.previous} />}
-            </Card>
-          ))}
-        </div>
-
-        <Card
-          className={isAdmin ? 'cursor-pointer press-scale' : ''}
+        <button
+          type="button"
           onClick={isAdmin ? openTaxModal : undefined}
+          className={`flex min-h-11 w-full items-center justify-between rounded-2xl border border-black/[0.05] bg-white px-4 text-left ${isAdmin ? 'press-scale' : ''}`}
         >
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold text-ink-faint">전월 세금대비금</p>
-              <p className="mt-2 text-2xl font-bold text-ink">{won(current.taxReserve)}</p>
+          <span className="text-xs font-semibold text-ink-faint">전월 세금예비금</span>
+          <span className="flex items-center gap-2 text-sm font-bold tabular-nums text-ink">
+            {won(current.taxReserve)}
+            {isAdmin && <span className="text-[11px] text-brand-red">수정</span>}
+          </span>
+        </button>
+
+        {viewMode === 'overview' ? (
+          <>
+            <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+              {overviewCards.map((card) => (
+                <Card key={card.label} padded={false} className="min-h-[118px] p-4 sm:min-h-[135px] sm:p-5">
+                  <p className="text-xs font-bold text-ink-faint">{card.label}</p>
+                  <p className={`mt-3 break-keep text-xl font-bold tabular-nums sm:text-2xl ${card.accent}`}>
+                    {card.percent ? ratioText(card.value) : won(card.value)}
+                  </p>
+                  <div className="mt-1"><Trend current={card.value} previous={card.previous} /></div>
+                </Card>
+              ))}
             </div>
-            {isAdmin && <span className="shrink-0 text-xs font-semibold text-brand-red">탭하여 수정</span>}
+
+            <Card padded={false} className="overflow-hidden">
+              <button type="button" onClick={() => setCostAnalysisOpen((open) => !open)} className="flex min-h-14 w-full items-center justify-between px-4 text-left sm:px-5">
+                <span className="text-sm font-bold text-ink">비용 분석</span>
+                <span className="flex items-center gap-2 text-xs font-semibold text-ink-faint">
+                  원가 · 인건비 · 광고비
+                  <ChevronDown size={17} className={`transition-transform ${costAnalysisOpen ? 'rotate-180' : ''}`} />
+                </span>
+              </button>
+              {costAnalysisOpen && (
+                <div className="grid grid-cols-3 gap-2 border-t border-black/[0.05] p-3 sm:p-4">
+                  {[
+                    ['원가율', percent(totals.cost, current.sales), percent(previousTotals.food + previousTotals.drinks, previous.sales)],
+                    ['인건비율', percent(totals.labor, current.sales), percent(previousTotals.labor, previous.sales)],
+                    ['광고비율', percent(totals.ads, current.sales), percent(previousTotals.ads, previous.sales)],
+                  ].map(([label, value, previousValue]) => (
+                    <div key={String(label)} className="rounded-xl bg-brand-beige-light p-3 text-center">
+                      <p className="text-[11px] font-semibold text-ink-faint">{label}</p>
+                      <p className="mt-1 text-lg font-bold text-ink">{ratioText(Number(value))}</p>
+                      <Trend current={Number(value)} previous={Number(previousValue)} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </>
+        ) : (
+          <div className="space-y-3">
+            <DetailAccordion title="매출" total={current.sales} currentTrend={current.sales} previousTrend={previous.sales} open={openSection === 'sales'} onToggle={() => toggleSection('sales')}>
+              <label><span className="mb-2 block text-xs font-semibold text-ink-soft">총매출</span><MoneyInput value={current.sales} onChange={(sales) => update({ sales })} /></label>
+            </DetailAccordion>
+
+            <DetailAccordion title="원가" total={totals.cost} ratio={percent(totals.cost, current.sales)} currentTrend={totals.cost} previousTrend={previousTotals.food + previousTotals.drinks} open={openSection === 'cost'} onToggle={() => toggleSection('cost')}>
+              <p className="mb-3 text-xs font-bold text-ink-faint">식자재</p>
+              <CustomItemGrid values={current.food} defaultKeys={FOOD} canEdit={isAdmin} onChange={(key, value) => updateMap('food', key, value)} onEditItem={(key) => openEditItem('food', key)} onDeleteItem={(key) => setDeleteItem({ field: 'food', key })} />
+              {isAdmin && <AddItemButton onClick={() => openAddItem('food')} />}
+              <div className="my-5 h-px bg-black/[0.05]" />
+              <p className="mb-3 text-xs font-bold text-ink-faint">주류·음료</p>
+              <CustomItemGrid values={current.drinks} defaultKeys={DRINKS} canEdit={isAdmin} onChange={(key, value) => updateMap('drinks', key, value)} onEditItem={(key) => openEditItem('drinks', key)} onDeleteItem={(key) => setDeleteItem({ field: 'drinks', key })} />
+              {isAdmin && <AddItemButton onClick={() => openAddItem('drinks')} />}
+            </DetailAccordion>
+
+            <DetailAccordion title="인건비" total={totals.labor} ratio={percent(totals.labor, current.sales)} currentTrend={totals.labor} previousTrend={previousTotals.labor} open={openSection === 'labor'} onToggle={() => toggleSection('labor')}>
+              <p className="mb-3 text-xs font-bold text-ink-faint">정직원</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {FULL_TIME.map((name) => <label key={name}><span className="mb-1.5 block text-xs font-semibold text-ink-soft">{name}</span><MoneyInput value={current.labor[name] ?? 0} onChange={(value) => updateMap('labor', name, value)} /></label>)}
+              </div>
+              <div className="my-5 h-px bg-black/[0.05]" />
+              <p className="mb-3 text-xs font-bold text-ink-faint">파트타임</p>
+              <CustomItemGrid values={Object.fromEntries(Object.entries(current.labor).filter(([name]) => !FULL_TIME.includes(name)))} defaultKeys={[...FULL_TIME, ...employeeNames]} canEdit={isAdmin} onChange={(key, value) => updateMap('labor', key, value)} onEditItem={(key) => openEditItem('labor', key)} onDeleteItem={(key) => setDeleteItem({ field: 'labor', key })} />
+              {isAdmin && <AddItemButton onClick={() => openAddItem('labor')} />}
+            </DetailAccordion>
+
+            <DetailAccordion title="고정비" total={totals.fixedCosts} ratio={percent(totals.fixedCosts, current.sales)} currentTrend={totals.fixedCosts} previousTrend={previousTotals.fixedCosts} open={openSection === 'fixedCosts'} onToggle={() => toggleSection('fixedCosts')}>
+              <CustomItemGrid values={current.fixedCosts} defaultKeys={FIXED_COSTS} canEdit={isAdmin} onChange={(key, value) => updateMap('fixedCosts', key, value)} onEditItem={(key) => openEditItem('fixedCosts', key)} onDeleteItem={(key) => setDeleteItem({ field: 'fixedCosts', key })} />
+              {isAdmin && <AddItemButton onClick={() => openAddItem('fixedCosts')} />}
+            </DetailAccordion>
+
+            <DetailAccordion title="광고비" total={totals.ads} ratio={percent(totals.ads, current.sales)} currentTrend={totals.ads} previousTrend={previousTotals.ads} open={openSection === 'ads'} onToggle={() => toggleSection('ads')}>
+              <CustomItemGrid values={current.ads} defaultKeys={ADS} canEdit={isAdmin} onChange={(key, value) => updateMap('ads', key, value)} onEditItem={(key) => openEditItem('ads', key)} onDeleteItem={(key) => setDeleteItem({ field: 'ads', key })} />
+              {isAdmin && <AddItemButton onClick={() => openAddItem('ads')} />}
+            </DetailAccordion>
+
+            <DetailAccordion title="기타비용" total={totals.operations} ratio={percent(totals.operations, current.sales)} currentTrend={totals.operations} previousTrend={previousTotals.operations} open={openSection === 'operations'} onToggle={() => toggleSection('operations')}>
+              <CustomItemGrid values={current.operations} defaultKeys={OPERATIONS} canEdit={isAdmin} onChange={(key, value) => updateMap('operations', key, value)} onEditItem={(key) => openEditItem('operations', key)} onDeleteItem={(key) => setDeleteItem({ field: 'operations', key })} />
+              {isAdmin && <AddItemButton onClick={() => openAddItem('operations')} />}
+            </DetailAccordion>
+
+            <DetailAccordion title="세금" total={current.taxReserve} currentTrend={current.taxReserve} previousTrend={previous.taxReserve} open={openSection === 'tax'} onToggle={() => toggleSection('tax')}>
+              <button type="button" onClick={isAdmin ? openTaxModal : undefined} className="flex min-h-12 w-full items-center justify-between rounded-xl bg-brand-beige-light px-4 text-left">
+                <span className="text-xs font-semibold text-ink-soft">전월 세금예비금</span>
+                <span className="font-bold tabular-nums text-ink">{won(current.taxReserve)}</span>
+              </button>
+              <div className="mt-5">
+                <h3 className="mb-3 text-sm font-bold text-ink">관리자 메모</h3>
+                <Textarea value={current.memo} onChange={(event) => update({ memo: event.target.value })} placeholder={`${year}년 ${month}월 특이사항을 입력하세요.`} />
+                <p className="text-right text-xs text-ink-faint">입력 내용은 월별로 자동 저장됩니다.</p>
+              </div>
+            </DetailAccordion>
           </div>
-          <p className="mt-2 text-xs text-ink-faint">지난달에 미리 적립해둔 세금 예비금입니다.</p>
-        </Card>
+        )}
 
-        <Card>
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-bold text-ink">총매출</h2>
-              <Trend current={current.sales} previous={previous.sales} />
-            </div>
-            <p className="text-3xl font-bold text-brand-red">{won(current.sales)}</p>
-          </div>
-          <div className="mt-5"><MoneyInput value={current.sales} onChange={(sales) => update({ sales })} /></div>
-        </Card>
-
-        <ExpenseSection
-          title="식자재" values={current.food} sales={current.sales} previousTotal={previousTotals.food}
-          defaultKeys={FOOD} canEdit={isAdmin}
-          onChange={(key, value) => updateMap('food', key, value)}
-          onAddItem={() => openAddItem('food')} onEditItem={(key) => openEditItem('food', key)} onDeleteItem={(key) => setDeleteItem({ field: 'food', key })}
-        />
-        <ExpenseSection
-          title="주류·음료" values={current.drinks} sales={current.sales} previousTotal={previousTotals.drinks}
-          defaultKeys={DRINKS} canEdit={isAdmin}
-          onChange={(key, value) => updateMap('drinks', key, value)}
-          onAddItem={() => openAddItem('drinks')} onEditItem={(key) => openEditItem('drinks', key)} onDeleteItem={(key) => setDeleteItem({ field: 'drinks', key })}
-        />
-
-        <Card>
-          <div className="mb-5 flex items-start justify-between">
-            <div><h2 className="text-lg font-bold text-ink">인건비</h2><Trend current={totals.labor} previous={previousTotals.labor} /></div>
-            <div className="text-right"><p className="text-xl font-bold text-ink">{won(totals.labor)}</p><p className="text-xs text-ink-faint">매출 대비 {ratioText(percent(totals.labor, current.sales))}</p></div>
-          </div>
-          <p className="mb-3 text-xs font-bold text-ink-faint">정직원</p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {FULL_TIME.map((name) => <label key={name}><span className="mb-1.5 block text-xs font-semibold text-ink-soft">{name}</span><MoneyInput value={current.labor[name] ?? 0} onChange={(value) => updateMap('labor', name, value)} /></label>)}
-          </div>
-          <div className="my-5 h-px bg-black/[0.05]" />
-          <p className="mb-3 text-xs font-bold text-ink-faint">파트타임</p>
-          <CustomItemGrid
-            values={Object.fromEntries(Object.entries(current.labor).filter(([name]) => !FULL_TIME.includes(name)))}
-            defaultKeys={[...FULL_TIME, ...employeeNames]}
-            canEdit={isAdmin}
-            onChange={(key, value) => updateMap('labor', key, value)}
-            onEditItem={(key) => openEditItem('labor', key)}
-            onDeleteItem={(key) => setDeleteItem({ field: 'labor', key })}
-          />
-          {isAdmin && <AddItemButton onClick={() => openAddItem('labor')} />}
-        </Card>
-
-        <ExpenseSection
-          title="광고비" values={current.ads} sales={current.sales} previousTotal={previousTotals.ads}
-          defaultKeys={ADS} canEdit={isAdmin}
-          onChange={(key, value) => updateMap('ads', key, value)}
-          onAddItem={() => openAddItem('ads')} onEditItem={(key) => openEditItem('ads', key)} onDeleteItem={(key) => setDeleteItem({ field: 'ads', key })}
-        />
-        <ExpenseSection
-          title="운영비" values={current.operations} sales={current.sales} previousTotal={previousTotals.operations}
-          defaultKeys={OPERATIONS} canEdit={isAdmin}
-          onChange={(key, value) => updateMap('operations', key, value)}
-          onAddItem={() => openAddItem('operations')} onEditItem={(key) => openEditItem('operations', key)} onDeleteItem={(key) => setDeleteItem({ field: 'operations', key })}
-        />
-        <ExpenseSection
-          title="고정비" values={current.fixedCosts} sales={current.sales} previousTotal={previousTotals.fixedCosts}
-          defaultKeys={FIXED_COSTS} canEdit={isAdmin}
-          onChange={(key, value) => updateMap('fixedCosts', key, value)}
-          onAddItem={() => openAddItem('fixedCosts')} onEditItem={(key) => openEditItem('fixedCosts', key)} onDeleteItem={(key) => setDeleteItem({ field: 'fixedCosts', key })}
-        />
-
-        <Card>
-          <h2 className="mb-4 text-lg font-bold text-ink">관리자 메모</h2>
-          <Textarea value={current.memo} onChange={(event) => update({ memo: event.target.value })} placeholder={`${year}년 ${month}월 특이사항을 입력하세요.`} />
-          <p className="text-right text-xs text-ink-faint">입력 내용은 월별로 자동 저장됩니다.</p>
-        </Card>
+        <p className={`text-center text-xs font-semibold ${saveState === 'error' ? 'text-red-500' : 'text-ink-faint'}`}>
+          {saveState === 'saving' ? '저장 중…' : saveState === 'saved' ? '자동 저장됨' : saveState === 'error' ? '저장 실패' : ''}
+        </p>
       </div>
       )}
 
