@@ -33,7 +33,7 @@ export function ExpenseImportModal({ open, employees, onClose, onApply }: {
   const [newKeyword, setNewKeyword] = useState('');
   const [newCategory, setNewCategory] = useState<ExpenseCategory>('원가');
   const visible = useMemo(() => items.filter((item) => filter === 'all' || (filter === 'review' ? item.needsReview || item.duplicate : !item.needsReview && !item.duplicate)), [items, filter]);
-  const selected = items.filter((item) => item.selected && !item.needsReview && !item.duplicate && item.category !== '분류 확인 필요');
+  const selected = items.filter((item) => item.selected && !item.needsReview && item.category !== '분류 확인 필요');
   if (!open) return null;
 
   const updateItem = (id: string, patch: Partial<ParsedExpense>) => {
@@ -41,7 +41,7 @@ export function ExpenseImportModal({ open, employees, onClose, onApply }: {
       if (item.id !== id) return item;
       let next = refreshFingerprint(recalculateExpense({ ...item, ...patch }));
       next = { ...next, needsReview: !next.date || !next.counterparty || !next.actualAmount || next.category === '분류 확인 필요' };
-      if (next.needsReview || next.duplicate) next.selected = false;
+      if (next.needsReview) next.selected = false;
       return next;
     }));
   };
@@ -89,7 +89,7 @@ export function ExpenseImportModal({ open, employees, onClose, onApply }: {
           <div className="mt-4 space-y-3">
             {!busy && !items.length && <p className="py-12 text-center text-sm text-ink-faint">캡처를 선택하면 출금 내역을 읽어 검토 목록에 표시합니다.</p>}
             {visible.map((item) => <article key={item.id} className={`rounded-2xl border p-3 ${item.needsReview || item.duplicate ? 'border-amber-300 bg-amber-50' : 'border-black/5 bg-white shadow-sm'}`}>
-              <div className="flex items-start gap-2"><input type="checkbox" className="mt-1 h-5 w-5 accent-brand-red" checked={item.selected} disabled={item.needsReview || item.duplicate} onChange={(e) => updateItem(item.id, { selected: e.target.checked })} /><div className="min-w-0 grow">
+              <div className="flex items-start gap-2"><input type="checkbox" className="mt-1 h-5 w-5 accent-brand-red" checked={item.selected} disabled={item.needsReview} onChange={(e) => updateItem(item.id, { selected: e.target.checked })} /><div className="min-w-0 grow">
                 <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold">{item.needsReview && <span className="flex items-center gap-1 rounded-full bg-amber-200 px-2 py-1 text-amber-900"><AlertTriangle size={12}/> 확인 필요</span>}{item.duplicate && <span className="rounded-full bg-red-100 px-2 py-1 text-red-600">중복 가능성</span>}<span className="text-ink-faint">OCR {Math.round(item.confidence)}%</span></div>
                 <div className="mt-2 grid gap-2 sm:grid-cols-[145px_1fr_150px_150px]">
                   <input type="date" value={item.date} onChange={(e) => updateItem(item.id,{date:e.target.value})} className="min-h-11 rounded-xl bg-brand-beige-light px-3 text-sm" />
