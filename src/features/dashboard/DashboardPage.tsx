@@ -11,9 +11,10 @@ import { workTimeService } from '@/services/workTimeService';
 import { leaveService } from '@/services/leaveService';
 import { employeeService } from '@/services/employeeService';
 import { vendorService } from '@/services/vendorService';
+import { employeeDiscountService } from '@/services/employeeDiscountService';
 import { MyPayrollCard } from '@/features/payroll/MyPayrollCard';
 import { formatMonthDay, getWeekdayLabel, isToday, todayStr, WEEKDAY_LABELS_KO } from '@/utils/date';
-import { ArrowRight, CalendarCheck2, Clock3, Coffee, PackageCheck, Sparkles, TimerReset, Users } from 'lucide-react';
+import { ArrowRight, BadgePercent, CalendarCheck2, Clock3, Coffee, PackageCheck, Sparkles, TimerReset, Users } from 'lucide-react';
 import { StatCard } from '@/components/common/StatCard';
 
 export function DashboardPage() {
@@ -193,11 +194,25 @@ function StaffDashboard({ employeeId }: { employeeId: string }) {
   const [entryModalOpen, setEntryModalOpen] = useState(false);
   const [data, setData] = useState<Awaited<ReturnType<typeof dashboardService.getStaffDashboard>> | null>(null);
   const [todayRecord, setTodayRecord] = useState<Awaited<ReturnType<typeof workTimeService.get>>>(undefined);
+  const [discountSummary, setDiscountSummary] = useState<{ monthlyLimit: number; remaining: number } | null>(null);
   const today = todayStr();
 
   useEffect(() => {
     dashboardService.getStaffDashboard(employeeId).then(setData);
     workTimeService.get(employeeId, today).then(setTodayRecord);
+    const now = new Date();
+    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    employeeDiscountService
+      .getMine(employeeId, month)
+      .then(({ requests, setting }) => {
+        const monthlyLimit = setting.monthlyLimit;
+        const usedCount = requests.filter((request) => request.status === 'completed').length;
+        setDiscountSummary({ monthlyLimit, remaining: Math.max(0, monthlyLimit - usedCount) });
+      })
+      .catch((error) => {
+        console.error('[Dashboard] employee discount summary failed', error);
+        setDiscountSummary(null);
+      });
   }, [employeeId, today, refreshKey]);
 
   if (!data) return <p className="text-sm text-ink-faint text-center py-10">불러오는 중...</p>;
@@ -225,6 +240,28 @@ function StaffDashboard({ employeeId }: { employeeId: string }) {
         >
           {todayRecord ? '오늘 근무 수정' : '오늘 근무 입력'}
         </button>
+      </Card>
+
+      {/* 모바일 직원이 하단 메뉴를 늘리지 않고 바로 들어갈 수 있는 직원할인 진입점 */}
+      <Card
+        hover
+        onClick={() => navigate('/employee-discount')}
+        className="cursor-pointer border-brand-red/10 bg-gradient-to-r from-white to-brand-red-light/45"
+      >
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-red-light text-brand-red">
+            <BadgePercent size={22} strokeWidth={2.2} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="font-bold text-ink">직원 할인</p>
+            <p className="mt-0.5 text-sm text-ink-soft">
+              {discountSummary
+                ? `이번 달 ${discountSummary.monthlyLimit}회 중 ${discountSummary.remaining}회 남음`
+                : '이번 달 할인 혜택 확인하기'}
+            </p>
+          </div>
+          <ArrowRight size={18} className="shrink-0 text-brand-red" />
+        </div>
       </Card>
 
       {entryModalOpen && (

@@ -32,7 +32,6 @@ const ADMIN_PRIMARY: NavItem[] = [
   { to: '/dashboard', label: '대시보드', icon: LayoutDashboard, feature: 'dashboard' },
   { to: '/schedule', label: '스케줄', icon: CalendarDays, feature: 'schedule' },
   { to: '/leave', label: '휴무신청', icon: Coffee, feature: 'leave' },
-  { to: '/employee-discount', label: '직원할인', icon: BadgePercent, feature: 'employeeDiscount' },
   { to: '/order', label: '발주관리', icon: Package, feature: 'order' },
   { to: '/employee', label: '직원관리', icon: Users, feature: 'employee' },
   { to: '/payroll', label: '급여관리', icon: Wallet, feature: 'payroll' },
@@ -88,24 +87,21 @@ export function BottomNav() {
   const hasNoticeManagementAccess = canManageNotices(session?.name);
   const hasProfitLossAccess = canViewProfitLoss(session?.name);
 
-  // 직원 계열 화면: 매니저에게만 발주관리 탭을 추가합니다.
+  // 직원 계열 화면: 자주 쓰는 5개만 고정하고 나머지는 더보기에서 제공합니다.
   if (effectiveRole === 'employee' || effectiveRole === 'manager') {
-    const roleTabs =
-      effectiveRole === 'manager'
-        ? [...EMPLOYEE_TABS.slice(0, 3), ADMIN_PRIMARY[3], ...EMPLOYEE_TABS.slice(3)]
-        : EMPLOYEE_TABS;
-    let workerTabs = hasTomorrowPrepAccess
-      ? [...roleTabs.slice(0, -1), TOMORROW_PREP_TAB, roleTabs.at(-1)!]
-      : roleTabs;
-    if (hasNoticeManagementAccess) {
-      workerTabs = [...workerTabs.slice(0, -1), NOTICES_TAB, workerTabs.at(-1)!];
-    }
-    workerTabs = [...workerTabs.slice(0, -1), PREPAYMENTS_TAB, workerTabs.at(-1)!];
-    const totalWorkerCols = workerTabs.length + 1;
     return (
-      <nav className="sm:hidden fixed bottom-3 left-3 right-3 z-40 bg-surface/88 backdrop-blur-2xl border border-white/80 rounded-[22px] shadow-premium-lg pb-[env(safe-area-inset-bottom)] overflow-hidden">
-        <div className={`grid ${GRID_COLS[totalWorkerCols] ?? 'grid-cols-6'}`}>
-          {workerTabs.map((item) => {
+      <>
+        {moreOpen && <div className="sm:hidden fixed inset-0 z-40" onClick={() => setMoreOpen(false)}><div className="absolute inset-0 bg-ink/30 backdrop-blur-[2px]"/><div className="absolute bottom-[68px] inset-x-0 rounded-t-card border-t border-border bg-surface p-5 pb-7 shadow-premium-lg animate-sheet-in" onClick={(event) => event.stopPropagation()}><p className="px-2 pb-3 text-xs font-semibold text-ink-faint">더보기</p><div className="grid grid-cols-3 gap-2">
+          <button onClick={()=>{setMoreOpen(false);navigate('/employee-discount');}} className="flex flex-col items-center gap-1.5 rounded-2xl py-4 press-scale hover:bg-brand-beige-light"><BadgePercent size={21}/><span className="text-xs font-semibold">직원할인</span></button>
+          <button onClick={()=>{setMoreOpen(false);navigate(PREPAYMENTS_TAB.to);}} className="flex flex-col items-center gap-1.5 rounded-2xl py-4 press-scale hover:bg-brand-beige-light"><CreditCard size={21}/><span className="text-xs font-semibold">선결제</span></button>
+          {effectiveRole==='manager'&&<button onClick={()=>{setMoreOpen(false);navigate('/order');}} className="flex flex-col items-center gap-1.5 rounded-2xl py-4 press-scale hover:bg-brand-beige-light"><Package size={21}/><span className="text-xs font-semibold">발주관리</span></button>}
+          {hasTomorrowPrepAccess&&<button onClick={()=>{setMoreOpen(false);navigate(TOMORROW_PREP_TAB.to);}} className="flex flex-col items-center gap-1.5 rounded-2xl py-4 press-scale hover:bg-brand-beige-light"><ClipboardList size={21}/><span className="text-xs font-semibold">내일 준비</span></button>}
+          {hasNoticeManagementAccess&&<button onClick={()=>{setMoreOpen(false);navigate(NOTICES_TAB.to);}} className="flex flex-col items-center gap-1.5 rounded-2xl py-4 press-scale hover:bg-brand-beige-light"><Megaphone size={21}/><span className="text-xs font-semibold">공지사항</span></button>}
+          <button onClick={()=>void logout()} className="flex flex-col items-center gap-1.5 rounded-2xl py-4 text-status-rejected press-scale hover:bg-brand-beige-light"><LogOut size={21}/><span className="text-xs font-semibold">로그아웃</span></button>
+        </div></div></div>}
+        <nav className="sm:hidden fixed bottom-3 left-3 right-3 z-40 bg-surface/88 backdrop-blur-2xl border border-white/80 rounded-[22px] shadow-premium-lg pb-[env(safe-area-inset-bottom)] overflow-hidden">
+        <div className="grid grid-cols-6">
+          {EMPLOYEE_TABS.map((item) => {
             const Icon = item.icon;
             return (
               <NavLink
@@ -122,15 +118,13 @@ export function BottomNav() {
               </NavLink>
             );
           })}
-          <button
-            onClick={logout}
-            className="flex flex-col items-center justify-center gap-1 py-3 text-[10px] font-semibold press-scale text-ink-faint"
-          >
-            <LogOut size={18} strokeWidth={2} />
-            로그아웃
+          <button onClick={()=>setMoreOpen((value)=>!value)} className={`flex flex-col items-center justify-center gap-1 py-3 text-[10px] font-semibold press-scale ${moreOpen?'text-brand-red':'text-ink-faint'}`}>
+            <MoreHorizontal size={18} strokeWidth={2} />
+            더보기
           </button>
         </div>
       </nav>
+      </>
     );
   }
 
