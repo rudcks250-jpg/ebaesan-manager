@@ -144,6 +144,7 @@ export interface EmployeeDiscountRequest {
   processedBy?: string;
   processedByName?: string;
   restoredAt?: string;
+  memo?: string;
 }
 
 // ---------------------------------------------------------

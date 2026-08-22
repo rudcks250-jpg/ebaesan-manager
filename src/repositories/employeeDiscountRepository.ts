@@ -11,6 +11,7 @@ function mapRequest(row: Record<string, unknown>): EmployeeDiscountRequest {
     processedAt: row.processed_at ? String(row.processed_at) : undefined,
     processedBy: row.processed_by ? String(row.processed_by) : undefined,
     restoredAt: row.restored_at ? String(row.restored_at) : undefined,
+    memo: row.memo ? String(row.memo) : undefined,
   };
 }
 
@@ -39,13 +40,8 @@ export const employeeDiscountRepository = {
     if (error) throw error;
     return data ? mapSetting(data) : { employeeId, monthlyLimit: 2, discountRate: 0.2 };
   },
-  async create() {
-    const { data, error } = await supabase.rpc('create_employee_discount_request');
-    if (error) throw error;
-    return mapRequest(data as Record<string, unknown>);
-  },
-  async complete(id: string, originalAmount: number) {
-    const { data, error } = await supabase.rpc('complete_employee_discount_request', { p_request_id: id, p_original_amount: originalAmount });
+  async use(originalAmount: number, memo: string) {
+    const { data, error } = await supabase.rpc('use_employee_discount', { p_original_amount: originalAmount, p_memo: memo });
     if (error) throw error;
     return mapRequest(data as Record<string, unknown>);
   },
@@ -59,8 +55,8 @@ export const employeeDiscountRepository = {
     if (error) throw error;
     return mapSetting(data);
   },
-  async adminSave(input: { id?: string; employeeId: string; requestedAt: string; originalAmount: number }) {
-    const { data, error } = await supabase.rpc('admin_save_employee_discount', { p_request_id: input.id ?? null, p_employee_id: input.employeeId, p_requested_at: input.requestedAt, p_original_amount: input.originalAmount });
+  async adminSave(input: { id?: string; employeeId: string; requestedAt: string; originalAmount: number; memo?: string }) {
+    const { data, error } = await supabase.rpc('admin_save_employee_discount', { p_request_id: input.id ?? null, p_employee_id: input.employeeId, p_requested_at: input.requestedAt, p_original_amount: input.originalAmount, p_memo: input.memo ?? '' });
     if (error) throw error;
     return mapRequest(data as Record<string, unknown>);
   },
