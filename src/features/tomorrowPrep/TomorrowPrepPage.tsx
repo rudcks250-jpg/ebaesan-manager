@@ -37,6 +37,8 @@ const CHECKLIST_CATEGORIES = [
   { key: 'etc', icon: '🥣', title: '기타', itemKeys: ['salt', 'ssamjang', 'milmyeon-broth'] },
 ] as const;
 
+const PREPARATION_RESET_HOUR = 19;
+
 function emptyItems(): OpeningPreparationItem[] {
   return CHECKLIST.map(([key, label]) => ({ key, label, completed: false }));
 }
@@ -71,6 +73,20 @@ export function TomorrowPrepPage() {
   const [savingKey, setSavingKey] = useState<string>();
   const [confirming, setConfirming] = useState(false);
   const [dirtyAfterConfirm, setDirtyAfterConfirm] = useState(false);
+  const [preparationWindow, setPreparationWindow] = useState(0);
+
+  useEffect(() => {
+    const now = new Date();
+    const nextReset = new Date(now);
+    nextReset.setHours(PREPARATION_RESET_HOUR, 0, 0, 0);
+    if (now >= nextReset) nextReset.setDate(nextReset.getDate() + 1);
+
+    const timer = window.setTimeout(
+      () => setPreparationWindow((current) => current + 1),
+      nextReset.getTime() - now.getTime() + 1_000,
+    );
+    return () => window.clearTimeout(timer);
+  }, [preparationWindow]);
 
   useEffect(() => {
     if (!session) return;
@@ -82,12 +98,11 @@ export function TomorrowPrepPage() {
         const records = await openingPreparationRepository.findByDates([today, tomorrow]);
         const todayRecord = records.find((record) => record.targetDate === today);
         const tomorrowRecord = records.find((record) => record.targetDate === tomorrow);
-        // 오픈 전(15시 이전)에는 전날 확정된 오늘 준비표를 우선 보여줍니다.
-        const selected =
-          new Date().getHours() < 15 && todayRecord?.confirmedAt
-            ? todayRecord
-            : tomorrowRecord;
-        const selectedDate = selected?.targetDate ?? tomorrow;
+        // 오후 7시 전에는 전날 작성한 오늘 준비표를 유지하고,
+        // 오후 7시부터 다음 날 준비표로 전환합니다. DB 기록 자체는 삭제하지 않습니다.
+        const beforeReset = new Date().getHours() < PREPARATION_RESET_HOUR;
+        const selected = beforeReset ? todayRecord : tomorrowRecord;
+        const selectedDate = selected?.targetDate ?? (beforeReset ? today : tomorrow);
         if (cancelled) return;
         setPreparation(selected);
         setItems(selected?.items?.length ? selected.items : emptyItems());
@@ -101,7 +116,7 @@ export function TomorrowPrepPage() {
     return () => {
       cancelled = true;
     };
-  }, [session, showToast]);
+  }, [session, showToast, preparationWindow]);
 
   const completedCount = items.filter((item) => item.completed).length;
   const message = usageMessage(preparation, targetDate);
@@ -207,6 +222,9 @@ export function TomorrowPrepPage() {
           }`}>
             {message.today ? '✅' : '⚠'} {message.text}
           </div>
+          <p className="mt-2 text-center text-xs font-medium text-ink-faint">
+            매일 오후 7시에 다음 날 준비 목록으로 전환됩니다.
+          </p>
 
           <div className="mt-5 rounded-[22px] bg-white p-5 shadow-[0_10px_32px_-24px_rgba(15,23,42,.4)] ring-1 ring-black/[0.05]">
             <p className="text-xs font-bold text-ink-faint">마지막 확정</p>
