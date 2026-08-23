@@ -38,6 +38,11 @@ export interface EmployeePayroll {
   settled: boolean;
 }
 
+export interface EmployeePayrollDetails extends EmployeePayroll {
+  records: WorkTimeRecord[];
+  daysUntilPay: number;
+}
+
 export interface MonthlyPayrollSummary {
   yearMonth: string;
   totalLaborCost: number;
@@ -170,7 +175,7 @@ export const payrollService = {
   },
 
   // 직원 본인의 현재 급여 현황 (근무시간이 바뀌면 호출부에서 다시 호출하면 즉시 반영)
-  async getCurrentPayroll(employeeId: string, today: Date = new Date()) {
+  async getCurrentPayroll(employeeId: string, today: Date = new Date()): Promise<EmployeePayrollDetails | undefined> {
     const employee = await employeeService.get(employeeId);
     if (!employee) return undefined;
 
@@ -188,7 +193,42 @@ export const payrollService = {
     const base = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const daysUntilPay = Math.round((payDate.getTime() - base.getTime()) / 86400000);
 
-    return { employee, period, records, totalMinutes, totalDays, gross, deduction, net, daysUntilPay };
+    return { employee, period, records, totalMinutes, totalDays, gross, deduction, net, settled: false, daysUntilPay };
+  },
+
+  // 직원 본인이 선택한 기간의 급여명세서 미리보기용 계산입니다.
+  // 직원 ID는 인증된 화면에서만 전달하며, 조회도 해당 직원의 근로기록으로 제한합니다.
+  async getPayrollForPeriod(
+    employeeId: string,
+    periodStart: string,
+    periodEnd: string
+  ): Promise<EmployeePayrollDetails | undefined> {
+    const employee = await employeeService.get(employeeId);
+    if (!employee) return undefined;
+
+    const allRecords = await workTimeService.listByEmployee(employeeId);
+    const records = allRecords
+      .filter((record) => record.date >= periodStart && record.date <= periodEnd)
+      .sort((a, b) => a.date.localeCompare(b.date));
+    const totalMinutes = workTimeService.sumMinutes(records);
+    const totalDays = records.filter((record) => record.workedMinutes !== null).length;
+    const gross = this.calcEmployeeGrossPay(employee, totalMinutes);
+    const deduction = this.calcEmployeeDeduction(employee, gross);
+    const net = gross - deduction;
+    const currentPeriod = this.getCurrentPayrollPeriod(employee.payday);
+
+    return {
+      employee,
+      period: { start: periodStart, end: periodEnd, payDate: currentPeriod.payDate },
+      records,
+      totalMinutes,
+      totalDays,
+      gross,
+      deduction,
+      net,
+      settled: false,
+      daysUntilPay: 0,
+    };
   },
 
   async getEmployeePayroll(employeeId: string, year: number, month: number): Promise<EmployeePayroll | undefined> {

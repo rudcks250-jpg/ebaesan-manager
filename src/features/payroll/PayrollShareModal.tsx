@@ -3,9 +3,7 @@ import { Download, Share2, X } from 'lucide-react';
 import { useToast } from '@/components/common/Toast';
 import { minutesToCompactHourText } from '@/utils/time';
 import { downloadPayrollStatement, sharePayrollStatement } from '@/features/payroll/payrollStatementImage';
-import type { payrollService } from '@/services/payrollService';
-
-type CurrentPayroll = NonNullable<Awaited<ReturnType<typeof payrollService.getCurrentPayroll>>>;
+import type { EmployeePayrollDetails } from '@/services/payrollService';
 
 function formatClock(value: string | null | undefined): string {
   const match = value?.match(/^(\d{1,2}):(\d{2})/);
@@ -16,7 +14,15 @@ function formatDate(value: string): string {
   return value.replace(/-/g, '.');
 }
 
-export function PayrollShareModal({ payroll, onClose }: { payroll: CurrentPayroll; onClose: () => void }) {
+export function PayrollShareModal({
+  payroll,
+  onClose,
+  isCustomPeriod = false,
+}: {
+  payroll: EmployeePayrollDetails;
+  onClose: () => void;
+  isCustomPeriod?: boolean;
+}) {
   const { showToast } = useToast();
   const reportRef = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState(false);
@@ -27,7 +33,7 @@ export function PayrollShareModal({ payroll, onClose }: { payroll: CurrentPayrol
       .sort((a, b) => a.date.localeCompare(b.date)),
     [payroll.records],
   );
-  const statementMonth = payroll.period.payDate.slice(0, 7);
+  const statementMonth = payroll.period.end.slice(0, 7);
   const filename = `이배산_급여명세서_${payroll.employee.name}_${statementMonth}.png`;
   const wageLabel = payroll.employee.wageType === 'hourly'
     ? `시급 ${(payroll.employee.hourlyWage ?? 0).toLocaleString()}원`
@@ -108,6 +114,11 @@ export function PayrollShareModal({ payroll, onClose }: { payroll: CurrentPayrol
             </div>
 
             <div className="mt-4 rounded-2xl border border-black/[0.07] p-5">
+              {payroll.employee.wageType === 'monthly' && isCustomPeriod && (
+                <p className="mb-4 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-800">
+                  기본 급여기간과 다른 기간을 선택하여 월급 금액은 예상 급여로 표시됩니다.
+                </p>
+              )}
               <div className="grid gap-3 text-sm sm:grid-cols-2 sm:gap-x-8">
                 <div className="flex justify-between gap-3"><span className="text-ink-soft">급여형태</span><strong>{payroll.employee.wageType === 'hourly' ? '시급제' : '월급제'}</strong></div>
                 <div className="flex justify-between gap-3"><span className="text-ink-soft">시급 또는 월급</span><strong>{wageLabel.replace(/^(시급|월급) /, '')}</strong></div>
@@ -131,7 +142,7 @@ export function PayrollShareModal({ payroll, onClose }: { payroll: CurrentPayrol
                 <span className="text-left">날짜</span><span>출근 ~ 퇴근</span><span className="text-right">근로시간</span>
               </div>
               {records.length === 0 ? (
-                <p className="px-4 py-10 text-center text-sm text-ink-faint">해당 급여기간에 입력된 근무내역이 없습니다.</p>
+                <p className="px-4 py-10 text-center text-sm text-ink-faint">선택한 기간에 근무내역이 없습니다.</p>
               ) : records.map((record) => (
                 <div key={record.id} className="grid grid-cols-[1.15fr_1.7fr_0.8fr] items-center border-t border-black/[0.06] px-3 py-3.5 text-sm sm:px-5">
                   <strong className="tabular-nums">{formatDate(record.date)}</strong>
