@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
-import { Download, Share2, X } from 'lucide-react';
+import { Download, X } from 'lucide-react';
 import { useToast } from '@/components/common/Toast';
 import { minutesToCompactHourText } from '@/utils/time';
-import { downloadPayrollStatement, sharePayrollStatement } from '@/features/payroll/payrollStatementImage';
+import { downloadPayrollStatement } from '@/features/payroll/payrollStatementImage';
 import type { EmployeePayrollDetails } from '@/services/payrollService';
 
 function formatClock(value: string | null | undefined): string {
@@ -26,7 +26,6 @@ export function PayrollShareModal({
   const { showToast } = useToast();
   const reportRef = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState(false);
-  const [sharing, setSharing] = useState(false);
   const records = useMemo(
     () => payroll.records
       .filter((record) => record.workedMinutes !== null)
@@ -40,7 +39,7 @@ export function PayrollShareModal({
     : `월급 ${payroll.gross.toLocaleString()}원`;
 
   const handleDownload = async () => {
-    if (!reportRef.current || exporting || sharing) return;
+    if (!reportRef.current || exporting) return;
     setExporting(true);
     try {
       await downloadPayrollStatement(reportRef.current, filename);
@@ -50,21 +49,6 @@ export function PayrollShareModal({
       showToast('급여명세서 이미지 생성에 실패했습니다.', 'error');
     } finally {
       setExporting(false);
-    }
-  };
-
-  const handleShare = async () => {
-    if (!reportRef.current || exporting || sharing) return;
-    setSharing(true);
-    try {
-      const result = await sharePayrollStatement(reportRef.current, filename);
-      showToast(result === 'shared' ? '급여명세서를 공유했습니다.' : '공유를 지원하지 않아 이미지를 저장했습니다.');
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') return;
-      console.error('[PayrollStatement] image share failed', error);
-      showToast('급여명세서 공유에 실패했습니다.', 'error');
-    } finally {
-      setSharing(false);
     }
   };
 
@@ -164,12 +148,9 @@ export function PayrollShareModal({
         </div>
       </div>
 
-      <div className="grid shrink-0 grid-cols-2 gap-2 border-t border-black/[0.07] bg-white p-4 sm:mx-auto sm:w-full sm:max-w-[760px] sm:rounded-t-3xl sm:px-6">
-        <button type="button" onClick={handleDownload} disabled={exporting || sharing} className="flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-black/[0.08] bg-white text-sm font-bold text-ink press-scale disabled:opacity-50">
+      <div className="shrink-0 border-t border-black/[0.07] bg-white p-4 sm:mx-auto sm:w-full sm:max-w-[760px] sm:rounded-t-3xl sm:px-6">
+        <button type="button" onClick={handleDownload} disabled={exporting} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-brand-red text-sm font-bold text-white press-scale disabled:opacity-50">
           <Download size={18} /> {exporting ? '생성 중...' : '이미지 저장'}
-        </button>
-        <button type="button" onClick={handleShare} disabled={exporting || sharing} className="flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-brand-red text-sm font-bold text-white press-scale disabled:opacity-50">
-          <Share2 size={18} /> {sharing ? '생성 중...' : '공유하기'}
         </button>
       </div>
     </div>
