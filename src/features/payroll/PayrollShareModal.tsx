@@ -68,9 +68,9 @@ export function PayrollShareModal({
         <div
           ref={reportRef}
           data-payroll-statement-report
-          className="mx-auto w-full max-w-[760px] overflow-hidden rounded-[24px] bg-white text-ink shadow-sm"
+          className="mx-auto w-full max-w-[760px] overflow-hidden rounded-[24px] bg-white text-ink"
         >
-          <header className="border-b border-black/[0.07] px-5 py-7 sm:px-10 sm:py-10">
+          <header className="border-b border-[#00000012] px-5 py-7 sm:px-10 sm:py-10">
             <p className="text-sm font-extrabold tracking-wide text-brand-red">이배산 숯불구이</p>
             <h2 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">급여 근무내역 확인서</h2>
             <div className="mt-7 grid gap-4 rounded-2xl bg-[#F7F8FA] p-5 sm:grid-cols-2">
@@ -97,9 +97,9 @@ export function PayrollShareModal({
               </div>
             </div>
 
-            <div className="mt-4 rounded-2xl border border-black/[0.07] p-5">
+            <div className="mt-4 rounded-2xl border border-[#00000012] p-5">
               {payroll.employee.wageType === 'monthly' && isCustomPeriod && (
-                <p className="mb-4 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-800">
+                <p className="mb-4 rounded-xl bg-[#FFFBEB] px-3 py-2 text-xs font-semibold leading-5 text-[#92400E]">
                   기본 급여기간과 다른 기간을 선택하여 월급 금액은 예상 급여로 표시됩니다.
                 </p>
               )}
@@ -109,39 +109,39 @@ export function PayrollShareModal({
                 <div className="flex justify-between gap-3"><span className="text-ink-soft">세전 급여</span><strong>{payroll.gross.toLocaleString()}원</strong></div>
                 <div className="flex justify-between gap-3"><span className="text-ink-soft">공제금액</span><strong className="text-status-rejected">-{payroll.deduction.toLocaleString()}원</strong></div>
               </div>
-              <div className="mt-5 flex items-end justify-between gap-4 border-t border-black/[0.07] pt-5">
+              <div className="mt-5 flex items-end justify-between gap-4 border-t border-[#00000012] pt-5">
                 <span className="font-bold">최종 예상 지급액</span>
                 <strong className="text-3xl font-extrabold tracking-tight text-brand-red tabular-nums">{payroll.net.toLocaleString()}원</strong>
               </div>
             </div>
           </section>
 
-          <section className="border-t border-black/[0.07] px-5 py-7 sm:px-10 sm:py-9">
+          <section className="border-t border-[#00000012] px-5 py-7 sm:px-10 sm:py-9">
             <div className="mb-4 flex items-end justify-between">
               <h3 className="text-lg font-extrabold">일자별 실제 근무내역</h3>
               <span className="text-xs font-semibold text-ink-faint">근로시간 입력 기준</span>
             </div>
-            <div className="overflow-hidden rounded-2xl border border-black/[0.07]">
+            <div className="overflow-hidden rounded-2xl border border-[#00000012]">
               <div className="grid grid-cols-[1.15fr_1.7fr_0.8fr] bg-[#F7F8FA] px-3 py-3 text-center text-xs font-bold text-ink-faint sm:px-5">
                 <span className="text-left">날짜</span><span>출근 ~ 퇴근</span><span className="text-right">근로시간</span>
               </div>
               {records.length === 0 ? (
                 <p className="px-4 py-10 text-center text-sm text-ink-faint">선택한 기간에 근무내역이 없습니다.</p>
               ) : records.map((record) => (
-                <div key={record.id} className="grid grid-cols-[1.15fr_1.7fr_0.8fr] items-center border-t border-black/[0.06] px-3 py-3.5 text-sm sm:px-5">
+                <div key={record.id} className="grid grid-cols-[1.15fr_1.7fr_0.8fr] items-center border-t border-[#0000000F] px-3 py-3.5 text-sm sm:px-5">
                   <strong className="tabular-nums">{formatDate(record.date)}</strong>
                   <span className="text-center font-semibold tabular-nums text-ink-soft">{formatClock(record.clockIn)} ~ {formatClock(record.clockOut)}</span>
                   <strong className="text-right tabular-nums">{minutesToCompactHourText(record.workedMinutes)}</strong>
                 </div>
               ))}
-              <div className="border-t-2 border-black/[0.1] bg-[#FCFCFD] px-4 py-4 sm:px-5">
+              <div className="border-t-2 border-[#0000001A] bg-[#FCFCFD] px-4 py-4 sm:px-5">
                 <div className="flex justify-between gap-4 font-extrabold"><span>총 근로일수</span><span>{records.length}일</span></div>
                 <div className="mt-2 flex justify-between gap-4 font-extrabold"><span>총 근로시간</span><span>{minutesToCompactHourText(payroll.totalMinutes)}</span></div>
               </div>
             </div>
           </section>
 
-          <footer className="border-t border-black/[0.07] bg-[#FAFAFB] px-5 py-6 text-center sm:px-10">
+          <footer className="border-t border-[#00000012] bg-[#FAFAFB] px-5 py-6 text-center sm:px-10">
             <p className="text-sm font-bold">위 근무내역과 예상 급여를 확인해주세요.</p>
             <p className="mt-1 text-xs leading-5 text-ink-faint">실제 근무내용과 다를 경우 관리자에게 알려주세요.</p>
           </footer>
