@@ -101,6 +101,7 @@ export const leaveService = {
         status: 'pending' as const,
       })));
     } catch (error) {
+      const code = (error as { code?: string })?.code ?? '';
       const message = (error as { message?: string })?.message ?? '';
       console.error('휴무 신청 저장 실패', {
         employeeId: input.employeeId,
@@ -118,7 +119,16 @@ export const leaveService = {
           status: 'pending',
         })),
       });
-      if (message.includes('monthly') || message.includes('월차')) {
+      const missingMonthlySchema =
+        (code === 'PGRST204' || code === '42703') &&
+        (message.includes('leave_type') || message.includes('monthly_leave_eligible'));
+      if (missingMonthlySchema) {
+        return { success: false, errorMessage: '월차 DB 설정이 적용되지 않았습니다. 관리자에게 문의해주세요.' };
+      }
+      if (message.includes('월차 신청 권한')) {
+        return { success: false, errorMessage: '월차 신청 권한이 없습니다.' };
+      }
+      if (message.includes('이미 신청') || message.includes('이미 사용')) {
         return { success: false, errorMessage: '해당 월의 월차를 이미 신청하거나 사용했습니다.' };
       }
       if (message.includes('duplicate') || message.includes('unique')) {
