@@ -131,7 +131,7 @@ export function ScheduleGrid({
         if (!suppressClickRef.current) onCellClick?.(employee, date);
       },
       onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => {
-        if (!clickable || !shift || shift.status === 'unscheduled') return;
+        if (employee.isSubstitute || !clickable || !shift || shift.status === 'unscheduled') return;
         dragRef.current = {
           pointerId: event.pointerId,
           employee,
@@ -190,7 +190,8 @@ export function ScheduleGrid({
                 >
                   <span className="flex items-center gap-2.5">
                     <span className={`h-2.5 w-2.5 rounded-full ${getEmployeeAccent(employee.name).dot}`} />
-                    {employee.name}
+                    <span>{employee.name}</span>
+                    {employee.isSubstitute && <span className="rounded-full bg-brand-red-light px-2 py-0.5 text-[10px] font-extrabold text-brand-red">대타</span>}
                   </span>
                 </td>
                 {weekDates.map((date) => (
@@ -320,6 +321,7 @@ export function ScheduleGrid({
                 <div className={`flex min-w-0 items-center gap-2.5 px-1 text-[16px] font-bold ${employee.id === currentEmployeeId ? 'text-brand-red' : 'text-ink'}`}>
                   <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${getEmployeeAccent(employee.name).dot}`} />
                   <span className="truncate">{employee.name}</span>
+                  {employee.isSubstitute && <span className="shrink-0 rounded-full bg-brand-red-light px-1.5 py-0.5 text-[9px] font-extrabold text-brand-red">대타</span>}
                 </div>
                 <div data-schedule-date={selectedMobileDate} data-schedule-employee={employee.id}>
                   <ScheduleCell {...cellProps(employee, selectedMobileDate)} />

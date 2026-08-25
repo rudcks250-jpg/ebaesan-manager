@@ -1,4 +1,5 @@
 import { scheduleRepository, weekEndDate } from '@/repositories/scheduleRepository';
+import { scheduleSubstituteRepository, type SubstituteDraftInput } from '@/repositories/scheduleSubstituteRepository';
 import { FIXED_WEEKLY_SCHEDULES } from '@/data/fixedWeeklySchedules';
 import type { Employee, ScheduleWeek, ShiftEntry, ShiftStatus } from '@/data/types';
 import { addDays, formatDate, getWeekDates, parseDate } from '@/utils/date';
@@ -15,13 +16,14 @@ export const scheduleService = {
     employees: Employee[];
     week: ScheduleWeek;
   }> {
-    const board = await scheduleRepository.getWeekBoard(
-      weekStartDate,
-      weekEndDate(weekStartDate),
-    );
+    const endDate = weekEndDate(weekStartDate);
+    const [board, substitutes] = await Promise.all([
+      scheduleRepository.getWeekBoard(weekStartDate, endDate),
+      scheduleSubstituteRepository.getWeekBoard(weekStartDate, endDate),
+    ]);
     return {
-      employees: board.employees,
-      week: { id: `week_${weekStartDate}`, weekStartDate, shifts: board.shifts },
+      employees: [...board.employees, ...substitutes.employees],
+      week: { id: `week_${weekStartDate}`, weekStartDate, shifts: [...board.shifts, ...substitutes.shifts] },
     };
   },
 
@@ -102,7 +104,10 @@ export const scheduleService = {
   },
 
   async clearWeek(weekStartDate: string): Promise<void> {
-    await scheduleRepository.removeByDateRange(weekStartDate, weekEndDate(weekStartDate));
+    await Promise.all([
+      scheduleRepository.removeByDateRange(weekStartDate, weekEndDate(weekStartDate)),
+      scheduleSubstituteRepository.removeWeek(weekStartDate),
+    ]);
   },
 
   async copyPreviousWeek(weekStartDate: string, adminId: string): Promise<boolean> {
@@ -142,6 +147,27 @@ export const scheduleService = {
         await this.setShift(date, employeeId, input, adminId);
       }
     }
+  },
+
+  async createSubstitutes(weekStartDate: string, entries: SubstituteDraftInput[]): Promise<void> {
+    return scheduleSubstituteRepository.createMany(weekStartDate, entries);
+  },
+
+  async setSubstituteShift(date: string, substituteId: string, input: ShiftInput, adminId: string): Promise<void> {
+    return scheduleSubstituteRepository.upsertShift(substituteId, date, {
+      status: input.status === 'off' ? 'off' : 'working',
+      startTime: input.status === 'working' ? input.startTime : null,
+      endTime: input.status === 'working' ? input.endTime : null,
+      memo: input.memo,
+    }, adminId);
+  },
+
+  async clearSubstituteShift(date: string, substituteId: string): Promise<void> {
+    return scheduleSubstituteRepository.removeShift(substituteId, date);
+  },
+
+  async removeSubstitute(substituteId: string): Promise<void> {
+    return scheduleSubstituteRepository.removeSubstitute(substituteId);
   },
 
   async getShiftsInRange(startDate: string, endDate: string): Promise<ShiftEntry[]> {

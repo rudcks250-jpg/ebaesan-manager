@@ -7,6 +7,7 @@ import { formatMonthDay, getWeekdayLabel } from '@/utils/date';
 import type { Employee } from '@/data/types';
 import { LoaderCircle, Search, UsersRound, X } from 'lucide-react';
 import { ScheduleTimeSelector } from '@/features/schedule/ScheduleTimeSelector';
+import { OneTimeSubstituteSection } from '@/features/schedule/OneTimeSubstituteSection';
 
 interface BulkApplyModalProps {
   open: boolean;
@@ -34,6 +35,7 @@ export function BulkApplyModal({
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState(false);
+  const [tab, setTab] = useState<'employees' | 'substitutes'>('employees');
 
   const visibleEmployees = employees.filter((employee) =>
     employee.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())
@@ -73,16 +75,24 @@ export function BulkApplyModal({
       <Modal
         open={open}
         onClose={() => !saving && onClose()}
-      title="빠른 일괄 입력"
-      footer={
+      title="일괄등록"
+      panelClassName="sm:max-w-3xl"
+      footer={tab === 'employees' ? (
         <Button fullWidth onClick={handleApply} disabled={saving}>
           <span className="inline-flex items-center gap-1.5">
             {saving && <LoaderCircle size={16} className="animate-spin" />}
             선택한 대상에 적용
           </span>
         </Button>
-      }
+      ) : undefined}
     >
+      <div className="mb-5 grid grid-cols-2 rounded-2xl bg-brand-beige-light p-1">
+        <button type="button" onClick={() => setTab('employees')} className={`min-h-11 rounded-xl text-sm font-bold transition ${tab === 'employees' ? 'bg-white text-ink shadow-sm' : 'text-ink-soft'}`}>정식 직원 일괄등록</button>
+        <button type="button" onClick={() => setTab('substitutes')} className={`min-h-11 rounded-xl text-sm font-bold transition ${tab === 'substitutes' ? 'bg-white text-brand-red shadow-sm' : 'text-ink-soft'}`}>일회성 대타 추가</button>
+      </div>
+      {tab === 'substitutes' ? (
+        <OneTimeSubstituteSection weekDates={weekDates} onSaved={onSaved} onClose={onClose} />
+      ) : <>
       <div className="flex items-center justify-between gap-3 mb-2">
         <p className="text-sm font-semibold text-ink">직원 선택</p>
         <span className="text-xs font-semibold text-brand-red">{selectedEmployees.length}명 선택</span>
@@ -161,6 +171,7 @@ export function BulkApplyModal({
       />
       {error && <p className="text-xs text-status-rejected mb-3">{error}</p>}
       <div className="pb-2" />
+      </>}
     </Modal>
   );
 }

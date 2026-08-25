@@ -31,6 +31,9 @@ export interface Employee {
   lastLoginAt?: string; // 마지막 로그인 시각 (ISO)
   createdAt: string;
   updatedAt: string;
+  /** 선택한 주의 스케줄에만 존재하는 일회성 대타 행 */
+  isSubstitute?: boolean;
+  substituteMemo?: string;
 }
 
 // 인증 정보는 직원 정보와 분리 저장 (평문 저장 구조와 분리 -> 추후 인증 서비스 교체 대비)
@@ -51,10 +54,20 @@ export interface ShiftEntry {
   startTime: string | null; // HH:mm, 휴무면 null
   endTime: string | null; // HH:mm, 다음날로 넘어가는 경우도 문자열 그대로 저장 (예: 익일 01:00)
   status: ShiftStatus;
-  source: 'manual' | 'leaveApproved';
+  source: 'manual' | 'leaveApproved' | 'substitute';
   memo?: string;
   updatedAt: string;
   updatedBy: string; // 처리한 관리자 employeeId
+}
+
+export interface OneTimeSubstitute {
+  id: string;
+  weekStartDate: string;
+  name: string;
+  memo?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ScheduleWeek {

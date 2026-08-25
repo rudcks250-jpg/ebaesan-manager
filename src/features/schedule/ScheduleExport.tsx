@@ -92,7 +92,7 @@ export const ScheduleExport = forwardRef<HTMLDivElement, {
                   <td style={{ height: 48, borderTop: rowIndex ? '1px solid rgba(0,0,0,.045)' : 'none', padding: '4px 10px', fontSize: 16, fontWeight: 700 }}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
                       <span style={{ width: 8, height: 8, borderRadius: 99, background: accent.dotColor }} />
-                      {employee.name}
+                      {employee.name}{employee.isSubstitute ? ' · 대타' : ''}
                     </span>
                   </td>
                   {weekDates.map((date) => {

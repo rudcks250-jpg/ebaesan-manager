@@ -158,7 +158,7 @@ export function SchedulePage() {
   };
 
   const handleDragCopy = async (employee: Employee, dates: string[], shift: ShiftEntry) => {
-    if (!session || dates.length === 0) return;
+    if (!session || employee.isSubstitute || dates.length === 0) return;
     const previousShifts = dates.map((date) => ({
       date,
       shift: week.shifts.find((candidate) => candidate.employeeId === employee.id && candidate.date === date),
