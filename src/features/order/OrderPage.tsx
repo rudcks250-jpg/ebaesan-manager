@@ -1,19 +1,38 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Layout } from '@/components/layout/Layout';
 import { Card } from '@/components/common/Card';
 import { EmptyState } from '@/components/common/EmptyState';
 import { VendorCard } from '@/features/order/VendorCard';
 import { vendorService } from '@/services/vendorService';
 import { ClipboardCheck } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import type { Vendor } from '@/data/types';
 
 type StatusFilter = 'all' | 'notOrdered' | 'ordered';
 
 export function OrderPage() {
+  const { session } = useAuth();
   const [refreshKey, setRefreshKey] = useState(0);
   const [filter, setFilter] = useState<StatusFilter>('all');
-  const vendors = vendorService.list();
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleChanged = () => setRefreshKey((k) => k + 1);
+  const loadVendors = useCallback(async () => {
+    if (!session) return;
+    try {
+      setVendors(await vendorService.list(session.employeeId));
+      setRefreshKey((key) => key + 1);
+    } finally {
+      setLoading(false);
+    }
+  }, [session]);
+
+  useEffect(() => {
+    void loadVendors();
+    return vendorService.subscribe(() => { void loadVendors(); });
+  }, [loadVendors]);
+
+  const handleChanged = () => { void loadVendors(); };
 
   const matchesFilter = (ordered: boolean) => {
     if (filter === 'notOrdered') return !ordered;
@@ -84,7 +103,7 @@ export function OrderPage() {
           </section>
         )}
 
-        {quantityVendors.length === 0 && fixedVendors.length === 0 && (
+        {!loading && quantityVendors.length === 0 && fixedVendors.length === 0 && (
           <EmptyState icon="📦" title="조건에 맞는 거래처가 없습니다" description="필터를 변경해보세요." />
         )}
       </div>

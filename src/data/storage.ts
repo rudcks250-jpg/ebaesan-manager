@@ -69,6 +69,7 @@ export const STORAGE_KEYS = {
   workTimeRecords: 'workTimeRecords',
   orderItems: 'orderItems',
   vendors: 'vendors',
+  vendorSharedMigrated: 'vendorSharedMigrated',
   payrollSettlements: 'payrollSettlements',
   notices: 'notices',
   session: 'session',

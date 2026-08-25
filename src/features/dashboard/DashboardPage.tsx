@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Layout } from '@/components/layout/Layout';
 import { Card } from '@/components/common/Card';
 import { NoticeCard } from '@/features/dashboard/NoticeCard';
@@ -29,11 +29,12 @@ export function DashboardPage() {
 }
 
 function AdminDashboard() {
-  const [refreshKey, setRefreshKey] = useState(0);
+  const { session } = useAuth();
   const navigate = useNavigate();
   const [data, setData] = useState<Awaited<ReturnType<typeof dashboardService.getAdminDashboard>> | null>(null);
   const [recentLeaveRequests, setRecentLeaveRequests] = useState<Awaited<ReturnType<typeof leaveService.listAll>>>([]);
   const [employeeNameById, setEmployeeNameById] = useState<Map<string, string>>(new Map());
+  const [vendors, setVendors] = useState<Awaited<ReturnType<typeof vendorService.list>>>([]);
 
   const today = new Date();
   const dateLabel = `${today.getMonth() + 1}월 ${today.getDate()}일 (${WEEKDAY_LABELS_KO[today.getDay() === 0 ? 6 : today.getDay() - 1]})`;
@@ -46,9 +47,15 @@ function AdminDashboard() {
       list.forEach((e) => map.set(e.id, e.name));
       setEmployeeNameById(map);
     });
-  }, [refreshKey]);
+  }, []);
 
-  const vendors = useMemo(() => vendorService.list(), [refreshKey]);
+  useEffect(() => {
+    if (!session) return;
+    const load = () => { void vendorService.list(session.employeeId).then(setVendors); };
+    load();
+    return vendorService.subscribe(load);
+  }, [session]);
+
   const orderedCount = vendors.filter((v) => vendorService.isOrderedToday(v)).length;
 
   if (!data) return <p className="text-sm text-ink-faint text-center py-10">불러오는 중...</p>;

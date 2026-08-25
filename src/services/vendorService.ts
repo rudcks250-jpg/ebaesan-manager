@@ -13,38 +13,42 @@ export const vendorService = {
     return vendor.type === 'fixed' ? DIRECT_VENDOR_ORDER_MESSAGES[vendor.id] : undefined;
   },
 
-  list(): Vendor[] {
-    return vendorRepository.findAll();
+  list(updatedBy?: string): Promise<Vendor[]> {
+    return vendorRepository.findAll(updatedBy);
   },
 
-  listByType(type: VendorType): Vendor[] {
-    return vendorRepository.findAll().filter((v) => v.type === type);
+  async listByType(type: VendorType, updatedBy?: string): Promise<Vendor[]> {
+    return (await vendorRepository.findAll(updatedBy)).filter((v) => v.type === type);
   },
 
-  update(id: string, patch: Partial<Vendor>): Vendor | undefined {
-    return vendorRepository.update(id, patch);
+  update(id: string, patch: Partial<Vendor>, updatedBy: string): Promise<Vendor | undefined> {
+    return vendorRepository.update(id, patch, updatedBy);
   },
 
-  updateContact(id: string, name: string, contactName: string, phone: string): Vendor | undefined {
+  updateContact(id: string, name: string, contactName: string, phone: string, updatedBy: string): Promise<Vendor | undefined> {
     return vendorRepository.update(id, {
       name,
       contactName,
       phone: phone.replace(/\D/g, ''),
-    });
+    }, updatedBy);
   },
 
-  markOrdered(id: string, orderedByName?: string): Vendor | undefined {
+  markOrdered(id: string, updatedBy: string, orderedByName?: string): Promise<Vendor | undefined> {
     return vendorRepository.update(id, {
       lastOrderAt: new Date().toISOString(),
       lastOrderedByName: orderedByName,
-    });
+    }, updatedBy);
   },
 
-  cancelTodayOrder(id: string): Vendor | undefined {
+  cancelTodayOrder(id: string, updatedBy: string): Promise<Vendor | undefined> {
     return vendorRepository.update(id, {
       lastOrderAt: undefined,
       lastOrderedByName: undefined,
-    });
+    }, updatedBy);
+  },
+
+  subscribe(onChange: () => void): () => void {
+    return vendorRepository.subscribe(onChange);
   },
 
   // 오늘 발주를 완료했는지 여부 (자정이 지나면 자동으로 false로 초기화됨)

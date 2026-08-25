@@ -6,6 +6,7 @@ import { Input } from '@/components/common/Input';
 import { vendorService } from '@/services/vendorService';
 import { useToast } from '@/components/common/Toast';
 import type { Vendor, VendorItem } from '@/data/types';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface VendorEditModalProps {
   vendor: Vendor;
@@ -29,14 +30,17 @@ function getEditableItems(vendor: Vendor): VendorItem[] {
 
 export function VendorEditModal({ vendor, onClose, onSaved }: VendorEditModalProps) {
   const { showToast } = useToast();
+  const { session } = useAuth();
   const [name, setName] = useState(vendor.name);
   const [contactName, setContactName] = useState(vendor.contactName);
   const [phone, setPhone] = useState(vendor.phone);
   const initialItems = getEditableItems(vendor);
   const [items, setItems] = useState<VendorItem[]>(initialItems);
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (!session || saving) return;
     if (!name.trim()) {
       setError('거래처명을 입력해주세요.');
       return;
@@ -52,15 +56,24 @@ export function VendorEditModal({ vendor, onClose, onSaved }: VendorEditModalPro
         ? { type: 'quantity', items, fixedOrder: undefined }
         : {};
 
-    vendorService.update(vendor.id, {
-      name: name.trim(),
-      contactName: contactName.trim(),
-      phone: phone.replace(/\D/g, ''),
-      ...itemPatch,
-    });
-    showToast('거래처 정보가 수정되었습니다.');
-    onSaved();
-    onClose();
+    setSaving(true);
+    try {
+      await vendorService.update(vendor.id, {
+        name: name.trim(),
+        contactName: contactName.trim(),
+        phone: phone.replace(/\D/g, ''),
+        ...itemPatch,
+      }, session.employeeId);
+      showToast('거래처 정보가 모든 기기에 적용되었습니다.');
+      onSaved();
+      onClose();
+    } catch (saveError) {
+      console.error('[OrderVendor] shared update failed', saveError);
+      setError('공용 발주정보 저장에 실패했습니다. DB 설정을 확인해주세요.');
+      showToast('거래처 정보를 저장하지 못했습니다.', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const addItem = () => {
@@ -93,7 +106,7 @@ export function VendorEditModal({ vendor, onClose, onSaved }: VendorEditModalPro
       footer={
         <div className="flex gap-2">
           <Button variant="secondary" fullWidth onClick={onClose}>취소</Button>
-          <Button fullWidth onClick={handleSave}>저장</Button>
+          <Button fullWidth disabled={saving} onClick={() => void handleSave()}>{saving ? '저장 중...' : '저장'}</Button>
         </div>
       }
     >

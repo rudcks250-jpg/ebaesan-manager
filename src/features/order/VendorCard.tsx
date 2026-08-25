@@ -310,7 +310,7 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
         completedBy: session.employeeId,
         completedByName: session.name,
       });
-      vendorService.markOrdered(vendor.id, session.name);
+      await vendorService.markOrdered(vendor.id, session.employeeId, session.name);
       if (isSharedCompletionVendor) setRecentOrder(saved);
       if (isLpgVendor) setOrderHistory((history) => [saved, ...history.filter((item) => item.id !== saved.id)]);
       showToast('발주 완료로 표시했습니다.');
@@ -320,7 +320,7 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
         showToast('발주 기록 저장에 실패했습니다.', 'error');
       } else {
         // 기존 거래처는 DB 마이그레이션 적용 전의 로컬 완료 동작을 유지합니다.
-        vendorService.markOrdered(vendor.id, session.name);
+        await vendorService.markOrdered(vendor.id, session.employeeId, session.name);
         if (isSharedCompletionVendor) setRecentOrder(localCompletion);
         showToast('발주 완료로 표시했습니다.');
         onChanged();
@@ -339,7 +339,7 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
       } else {
         await orderHistoryRepository.deleteToday(vendor.id);
       }
-      vendorService.cancelTodayOrder(vendor.id);
+      await vendorService.cancelTodayOrder(vendor.id, session.employeeId);
       if (isSharedCompletionVendor) {
         const latest = await orderHistoryRepository.findLatest(vendor.id);
         setRecentOrder(latest);
