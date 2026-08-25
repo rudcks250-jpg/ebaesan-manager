@@ -8,6 +8,35 @@ function captureScale(width: number, height: number): number {
   return Math.max(1, Math.min(preferred, safe));
 }
 
+function hasRenderedContent(canvas: HTMLCanvasElement): boolean {
+  const sample = document.createElement('canvas');
+  sample.width = 48;
+  sample.height = 48;
+  const context = sample.getContext('2d', { willReadFrequently: true });
+  if (!context) return false;
+  context.drawImage(canvas, 0, 0, sample.width, sample.height);
+  const pixels = context.getImageData(0, 0, sample.width, sample.height).data;
+  for (let index = 0; index < pixels.length; index += 4) {
+    const alpha = pixels[index + 3];
+    if (alpha > 0 && (pixels[index] < 245 || pixels[index + 1] < 245 || pixels[index + 2] < 245)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function renderAndValidate(
+  element: HTMLDivElement,
+  options: Parameters<typeof html2canvas>[1],
+  foreignObjectRendering: boolean,
+): Promise<HTMLCanvasElement> {
+  const canvas = await html2canvas(element, { ...options, foreignObjectRendering });
+  if (!hasRenderedContent(canvas)) {
+    throw new Error('급여명세서 내용이 이미지에 렌더링되지 않았습니다.');
+  }
+  return canvas;
+}
+
 async function capturePayrollStatement(element: HTMLDivElement): Promise<HTMLCanvasElement> {
   const width = element.scrollWidth;
   const height = element.scrollHeight;
@@ -34,11 +63,11 @@ async function capturePayrollStatement(element: HTMLDivElement): Promise<HTMLCan
   };
 
   try {
-    // 최신 Tailwind 색상 함수는 html2canvas 파서보다 브라우저 렌더러가 더 안정적입니다.
-    return await html2canvas(element, { ...options, foreignObjectRendering: true });
+    // 보고서 전용 색상은 안전한 HEX로 구성되어 기본 캔버스 렌더러를 우선 사용합니다.
+    return await renderAndValidate(element, options, false);
   } catch (primaryError) {
-    console.warn('[PayrollStatement] browser-render capture failed; retrying canvas renderer', primaryError);
-    return html2canvas(element, { ...options, foreignObjectRendering: false });
+    console.warn('[PayrollStatement] canvas capture failed; retrying browser renderer', primaryError);
+    return renderAndValidate(element, options, true);
   }
 }
 
@@ -70,21 +99,4 @@ function downloadFile(file: File): void {
 
 export async function downloadPayrollStatement(element: HTMLDivElement, filename: string): Promise<void> {
   downloadFile(await createPayrollStatementFile(element, filename));
-}
-
-export async function sharePayrollStatement(
-  element: HTMLDivElement,
-  filename: string,
-): Promise<'shared' | 'downloaded'> {
-  const file = await createPayrollStatementFile(element, filename);
-  if (navigator.share && navigator.canShare?.({ files: [file] })) {
-    await navigator.share({
-      title: '이배산 숯불구이 급여 근무내역 확인서',
-      text: '급여기간의 근무내역과 예상 급여를 확인해주세요.',
-      files: [file],
-    });
-    return 'shared';
-  }
-  downloadFile(file);
-  return 'downloaded';
 }
