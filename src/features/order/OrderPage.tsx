@@ -3,8 +3,9 @@ import { Layout } from '@/components/layout/Layout';
 import { Card } from '@/components/common/Card';
 import { EmptyState } from '@/components/common/EmptyState';
 import { VendorCard } from '@/features/order/VendorCard';
+import { VendorEditModal } from '@/features/order/VendorEditModal';
 import { vendorService } from '@/services/vendorService';
-import { ClipboardCheck } from 'lucide-react';
+import { ClipboardCheck, Plus } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Vendor } from '@/data/types';
 
@@ -16,6 +17,7 @@ export function OrderPage() {
   const [filter, setFilter] = useState<StatusFilter>('all');
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const loadVendors = useCallback(async () => {
     if (!session) return;
@@ -61,14 +63,15 @@ export function OrderPage() {
         </Card>
 
         {/* 필터 */}
-        <div className="flex gap-2">
-          {(
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-1 gap-2">
+            {(
             [
               { key: 'all', label: '전체' },
               { key: 'notOrdered', label: '미발주' },
               { key: 'ordered', label: '발주완료' },
             ] as const
-          ).map((f) => (
+            ).map((f) => (
             <button
               key={f.key}
               onClick={() => setFilter(f.key)}
@@ -78,7 +81,11 @@ export function OrderPage() {
             >
               {f.label}
             </button>
-          ))}
+            ))}
+          </div>
+          <button type="button" onClick={() => setCreateOpen(true)} className="flex min-h-11 items-center gap-1.5 rounded-xl bg-brand-red px-4 text-sm font-bold text-white shadow-[0_6px_16px_-8px_rgba(0,122,255,.8)] press-scale">
+            <Plus size={17} /> 업체 추가
+          </button>
         </div>
 
         {quantityVendors.length > 0 && (
@@ -106,6 +113,7 @@ export function OrderPage() {
         {!loading && quantityVendors.length === 0 && fixedVendors.length === 0 && (
           <EmptyState icon="📦" title="조건에 맞는 거래처가 없습니다" description="필터를 변경해보세요." />
         )}
+        {createOpen && <VendorEditModal onClose={() => setCreateOpen(false)} onSaved={handleChanged} />}
       </div>
     </Layout>
   );

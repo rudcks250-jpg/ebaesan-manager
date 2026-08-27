@@ -25,6 +25,14 @@ export const vendorService = {
     return vendorRepository.update(id, patch, updatedBy);
   },
 
+  create(vendor: Vendor, updatedBy: string): Promise<Vendor> {
+    return vendorRepository.create(vendor, updatedBy);
+  },
+
+  remove(id: string, updatedBy: string): Promise<void> {
+    return vendorRepository.remove(id, updatedBy);
+  },
+
   updateContact(id: string, name: string, contactName: string, phone: string, updatedBy: string): Promise<Vendor | undefined> {
     return vendorRepository.update(id, {
       name,

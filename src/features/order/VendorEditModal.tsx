@@ -9,7 +9,7 @@ import type { Vendor, VendorItem } from '@/data/types';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface VendorEditModalProps {
-  vendor: Vendor;
+  vendor?: Vendor;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -31,13 +31,26 @@ function getEditableItems(vendor: Vendor): VendorItem[] {
 export function VendorEditModal({ vendor, onClose, onSaved }: VendorEditModalProps) {
   const { showToast } = useToast();
   const { session } = useAuth();
-  const [name, setName] = useState(vendor.name);
-  const [contactName, setContactName] = useState(vendor.contactName);
-  const [phone, setPhone] = useState(vendor.phone);
-  const initialItems = getEditableItems(vendor);
+  const [newVendorId] = useState(() => `vendor_${crypto.randomUUID()}`);
+  const isNew = !vendor;
+  const draftVendor: Vendor = vendor ?? {
+    id: newVendorId,
+    name: '',
+    contactName: '',
+    phone: '',
+    type: 'quantity',
+    items: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  const [name, setName] = useState(draftVendor.name);
+  const [contactName, setContactName] = useState(draftVendor.contactName);
+  const [phone, setPhone] = useState(draftVendor.phone);
+  const initialItems = getEditableItems(draftVendor);
   const [items, setItems] = useState<VendorItem[]>(initialItems);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const handleSave = async () => {
     if (!session || saving) return;
@@ -50,7 +63,7 @@ export function VendorEditModal({ vendor, onClose, onSaved }: VendorEditModalPro
       return;
     }
     const itemsChanged = JSON.stringify(items) !== JSON.stringify(initialItems);
-    const itemPatch: Partial<Vendor> = vendor.type === 'quantity'
+    const itemPatch: Partial<Vendor> = draftVendor.type === 'quantity'
       ? { items }
       : itemsChanged
         ? { type: 'quantity', items, fixedOrder: undefined }
@@ -58,13 +71,18 @@ export function VendorEditModal({ vendor, onClose, onSaved }: VendorEditModalPro
 
     setSaving(true);
     try {
-      await vendorService.update(vendor.id, {
-        name: name.trim(),
-        contactName: contactName.trim(),
-        phone: phone.replace(/\D/g, ''),
-        ...itemPatch,
-      }, session.employeeId);
-      showToast('거래처 정보가 모든 기기에 적용되었습니다.');
+      const patch = {
+          name: name.trim(),
+          contactName: contactName.trim(),
+          phone: phone.replace(/\D/g, ''),
+          ...itemPatch,
+        };
+      if (isNew) {
+        await vendorService.create({ ...draftVendor, ...patch, type: 'quantity', items }, session.employeeId);
+      } else {
+        await vendorService.update(draftVendor.id, patch, session.employeeId);
+      }
+      showToast(isNew ? '새 거래처가 모든 기기에 추가되었습니다.' : '거래처 정보가 모든 기기에 적용되었습니다.');
       onSaved();
       onClose();
     } catch (saveError) {
@@ -76,11 +94,29 @@ export function VendorEditModal({ vendor, onClose, onSaved }: VendorEditModalPro
     }
   };
 
+  const handleDelete = async () => {
+    if (!session || !vendor || deleting) return;
+    if (!window.confirm(`${vendor.name} 거래처를 삭제하시겠습니까?\n기존 발주 이력은 삭제되지 않습니다.`)) return;
+    setDeleting(true);
+    try {
+      await vendorService.remove(vendor.id, session.employeeId);
+      showToast('거래처가 모든 기기에서 삭제되었습니다.');
+      onSaved();
+      onClose();
+    } catch (deleteError) {
+      console.error('[OrderVendor] shared delete failed', deleteError);
+      setError('거래처 삭제에 실패했습니다. DB 설정을 확인해주세요.');
+      showToast('거래처를 삭제하지 못했습니다.', 'error');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const addItem = () => {
     setItems((current) => [
       ...current,
       {
-        id: `item_${vendor.id}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        id: `item_${draftVendor.id}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         name: '',
         unit: '개',
         defaultQty: 1,
@@ -102,7 +138,7 @@ export function VendorEditModal({ vendor, onClose, onSaved }: VendorEditModalPro
     <Modal
       open
       onClose={onClose}
-      title="거래처 정보 수정"
+      title={isNew ? '새 거래처 추가' : '거래처 정보 수정'}
       footer={
         <div className="flex gap-2">
           <Button variant="secondary" fullWidth onClick={onClose}>취소</Button>
@@ -182,6 +218,11 @@ export function VendorEditModal({ vendor, onClose, onSaved }: VendorEditModalPro
       </section>
 
       {error && <p className="mt-3 text-sm font-semibold text-status-rejected">{error}</p>}
+      {!isNew && (
+        <button type="button" disabled={deleting} onClick={() => void handleDelete()} className="mb-5 mt-5 flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-status-rejected-bg text-sm font-bold text-status-rejected disabled:opacity-50">
+          <Trash2 size={16} /> {deleting ? '삭제 중...' : '이 거래처 삭제'}
+        </button>
+      )}
     </Modal>
   );
 }

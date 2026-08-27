@@ -6,6 +6,7 @@ interface VendorRow {
   id: string;
   data: Vendor;
   updated_at: string;
+  deleted_at: string | null;
 }
 
 const isMissingTable = (error: { code?: string; message?: string } | null) =>
@@ -28,7 +29,7 @@ function mergeItems(shared: VendorItem[] = [], local: VendorItem[] = []): Vendor
   return [...shared, ...local.filter((item) => !ids.has(item.id))];
 }
 
-function mergeLegacyOnce(shared: Vendor[], local: Vendor[]): Vendor[] {
+function mergeLegacyOnce(shared: Vendor[], local: Vendor[], deletedIds: Set<string>): Vendor[] {
   const localById = new Map(local.map((vendor) => [vendor.id, vendor]));
   const sharedIds = new Set(shared.map((vendor) => vendor.id));
   return [
@@ -42,7 +43,7 @@ function mergeLegacyOnce(shared: Vendor[], local: Vendor[]): Vendor[] {
         items: mergeItems(vendor.items, old.items),
       };
     }),
-    ...local.filter((vendor) => !sharedIds.has(vendor.id)),
+    ...local.filter((vendor) => !sharedIds.has(vendor.id) && !deletedIds.has(vendor.id)),
   ];
 }
 
@@ -51,8 +52,8 @@ async function saveShared(vendor: Vendor, updatedBy: string): Promise<Vendor> {
   const payload = { ...vendor, updatedAt: savedAt };
   const { data, error } = await supabase
     .from('order_vendors')
-    .upsert({ id: vendor.id, data: payload, updated_by: updatedBy }, { onConflict: 'id' })
-    .select('id,data,updated_at')
+    .upsert({ id: vendor.id, data: payload, updated_by: updatedBy, deleted_at: null }, { onConflict: 'id' })
+    .select('id,data,updated_at,deleted_at')
     .single();
   if (error) throw error;
   return normalize(data as VendorRow);
@@ -61,25 +62,27 @@ async function saveShared(vendor: Vendor, updatedBy: string): Promise<Vendor> {
 export const vendorRepository = {
   async findAll(updatedBy?: string): Promise<Vendor[]> {
     const local = readLocal();
-    const result = await supabase.from('order_vendors').select('id,data,updated_at').order('created_at');
+    const result = await supabase.from('order_vendors').select('id,data,updated_at,deleted_at').order('created_at');
     if (result.error) {
       if (isMissingTable(result.error)) return local;
       throw result.error;
     }
 
-    let shared = ((result.data ?? []) as VendorRow[]).map(normalize);
-    if (shared.length === 0 && local.length > 0 && updatedBy) {
+    const allRows = (result.data ?? []) as VendorRow[];
+    const deletedIds = new Set(allRows.filter((row) => row.deleted_at).map((row) => row.id));
+    let shared = allRows.filter((row) => !row.deleted_at).map(normalize);
+    if (allRows.length === 0 && local.length > 0 && updatedBy) {
       const initialized = await supabase.rpc('initialize_order_vendors', { p_vendors: local });
       if (initialized.error) {
         if (isMissingTable(initialized.error)) return local;
         throw initialized.error;
       }
-      shared = ((initialized.data ?? []) as VendorRow[]).map(normalize);
+      shared = ((initialized.data ?? []) as VendorRow[]).filter((row) => !row.deleted_at).map(normalize);
     }
 
     const migrated = storage.get<boolean>(STORAGE_KEYS.vendorSharedMigrated) === true;
     if (!migrated && shared.length > 0 && updatedBy) {
-      const merged = mergeLegacyOnce(shared, local);
+      const merged = mergeLegacyOnce(shared, local, deletedIds);
       const changed = merged.filter((vendor) => {
         const server = shared.find((item) => item.id === vendor.id);
         return !server || JSON.stringify(server.items ?? []) !== JSON.stringify(vendor.items ?? []) ||
@@ -112,6 +115,21 @@ export const vendorRepository = {
     const next = index === -1 ? [...local, saved] : local.map((vendor) => vendor.id === id ? saved : vendor);
     writeLocal(next);
     return saved;
+  },
+
+  async create(vendor: Vendor, updatedBy: string): Promise<Vendor> {
+    const saved = await saveShared(vendor, updatedBy);
+    writeLocal([...readLocal().filter((item) => item.id !== saved.id), saved]);
+    return saved;
+  },
+
+  async remove(id: string, updatedBy: string): Promise<void> {
+    const { error } = await supabase
+      .from('order_vendors')
+      .update({ deleted_at: new Date().toISOString(), updated_by: updatedBy })
+      .eq('id', id);
+    if (error) throw error;
+    writeLocal(readLocal().filter((vendor) => vendor.id !== id));
   },
 
   seedIfEmpty(seed: Vendor[]): void {

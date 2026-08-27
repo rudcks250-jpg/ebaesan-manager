@@ -3,6 +3,7 @@ create table if not exists public.order_vendors (
   id text primary key,
   data jsonb not null,
   updated_by uuid references public.employees(id) on delete set null,
+  deleted_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   check (jsonb_typeof(data) = 'object')
