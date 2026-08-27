@@ -50,20 +50,11 @@ function mergeLegacyOnce(shared: Vendor[], local: Vendor[], deletedIds: Set<stri
 async function saveShared(vendor: Vendor, updatedBy: string): Promise<Vendor> {
   const savedAt = new Date().toISOString();
   const payload = { ...vendor, updatedAt: savedAt };
-  let { data, error } = await supabase
+  const { data, error } = await supabase
     .from('order_vendors')
-    .upsert({ id: vendor.id, data: payload, updated_by: updatedBy, deleted_at: null }, { onConflict: 'id' })
-    .select('id,data,updated_at,deleted_at')
+    .upsert({ id: vendor.id, data: payload, updated_by: updatedBy }, { onConflict: 'id' })
+    .select('id,data,updated_at')
     .single();
-  if (error?.code === '42703' && error.message.includes('deleted_at')) {
-    const compatible = await supabase
-      .from('order_vendors')
-      .upsert({ id: vendor.id, data: payload, updated_by: updatedBy }, { onConflict: 'id' })
-      .select('id,data,updated_at')
-      .single();
-    data = compatible.data as typeof data;
-    error = compatible.error;
-  }
   if (error) throw error;
   return normalize(data as VendorRow);
 }
