@@ -28,19 +28,29 @@ const CHECKLIST = [
   ['salt', '소금'],
   ['ssamjang', '쌈장'],
   ['milmyeon-broth', '밀면육수'],
+  ['onion-soy-sauce', '양파간장'],
 ] as const;
 
 const CHECKLIST_CATEGORIES = [
   { key: 'stew', icon: '🥘', title: '찌개', itemKeys: ['doenjang', 'gochujang'] },
   { key: 'vegetable', icon: '🥬', title: '야채', itemKeys: ['kimchi', 'minari', 'onion', 'green-onion'] },
   { key: 'cooking', icon: '🍳', title: '조리', itemKeys: ['steamed-egg', 'fried-rice-sauce', 'myeoljeot'] },
-  { key: 'etc', icon: '🥣', title: '기타', itemKeys: ['salt', 'ssamjang', 'milmyeon-broth'] },
+  { key: 'etc', icon: '🥣', title: '기타', itemKeys: ['salt', 'ssamjang', 'milmyeon-broth', 'onion-soy-sauce'] },
 ] as const;
 
 const PREPARATION_RESET_HOUR = 19;
 
 function emptyItems(): OpeningPreparationItem[] {
   return CHECKLIST.map(([key, label]) => ({ key, label, completed: false }));
+}
+
+function mergeChecklistItems(savedItems: OpeningPreparationItem[] | undefined): OpeningPreparationItem[] {
+  const savedByKey = new Map((savedItems ?? []).map((item) => [item.key, item]));
+  const defaultKeys = new Set(CHECKLIST.map(([key]) => key));
+  return [
+    ...emptyItems().map((item) => savedByKey.get(item.key) ?? item),
+    ...(savedItems ?? []).filter((item) => !defaultKeys.has(item.key as typeof CHECKLIST[number][0])),
+  ];
 }
 
 function localDateFromIso(iso: string): string {
@@ -105,7 +115,7 @@ export function TomorrowPrepPage() {
         const selectedDate = selected?.targetDate ?? (beforeReset ? today : tomorrow);
         if (cancelled) return;
         setPreparation(selected);
-        setItems(selected?.items?.length ? selected.items : emptyItems());
+        setItems(mergeChecklistItems(selected?.items));
         setTargetDate(selectedDate);
       } catch {
         showToast('오픈 준비 정보를 불러오지 못했습니다.', 'error');
