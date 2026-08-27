@@ -6,7 +6,7 @@ interface VendorRow {
   id: string;
   data: Vendor;
   updated_at: string;
-  deleted_at: string | null;
+  deleted_at?: string | null;
 }
 
 const isMissingTable = (error: { code?: string; message?: string } | null) =>
@@ -50,11 +50,20 @@ function mergeLegacyOnce(shared: Vendor[], local: Vendor[], deletedIds: Set<stri
 async function saveShared(vendor: Vendor, updatedBy: string): Promise<Vendor> {
   const savedAt = new Date().toISOString();
   const payload = { ...vendor, updatedAt: savedAt };
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('order_vendors')
     .upsert({ id: vendor.id, data: payload, updated_by: updatedBy, deleted_at: null }, { onConflict: 'id' })
     .select('id,data,updated_at,deleted_at')
     .single();
+  if (error?.code === '42703' && error.message.includes('deleted_at')) {
+    const compatible = await supabase
+      .from('order_vendors')
+      .upsert({ id: vendor.id, data: payload, updated_by: updatedBy }, { onConflict: 'id' })
+      .select('id,data,updated_at')
+      .single();
+    data = compatible.data as typeof data;
+    error = compatible.error;
+  }
   if (error) throw error;
   return normalize(data as VendorRow);
 }
@@ -62,7 +71,10 @@ async function saveShared(vendor: Vendor, updatedBy: string): Promise<Vendor> {
 export const vendorRepository = {
   async findAll(updatedBy?: string): Promise<Vendor[]> {
     const local = readLocal();
-    const result = await supabase.from('order_vendors').select('id,data,updated_at,deleted_at').order('created_at');
+    let result = await supabase.from('order_vendors').select('id,data,updated_at,deleted_at').order('created_at');
+    if (result.error?.code === '42703' && result.error.message.includes('deleted_at')) {
+      result = await supabase.from('order_vendors').select('id,data,updated_at').order('created_at') as typeof result;
+    }
     if (result.error) {
       if (isMissingTable(result.error)) return local;
       throw result.error;
@@ -124,10 +136,14 @@ export const vendorRepository = {
   },
 
   async remove(id: string, updatedBy: string): Promise<void> {
-    const { error } = await supabase
+    let { error } = await supabase
       .from('order_vendors')
       .update({ deleted_at: new Date().toISOString(), updated_by: updatedBy })
       .eq('id', id);
+    if (error?.code === '42703' && error.message.includes('deleted_at')) {
+      const compatible = await supabase.from('order_vendors').delete().eq('id', id);
+      error = compatible.error;
+    }
     if (error) throw error;
     writeLocal(readLocal().filter((vendor) => vendor.id !== id));
   },
