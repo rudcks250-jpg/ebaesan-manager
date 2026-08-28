@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { GripVertical } from 'lucide-react';
 import { ScheduleCell } from '@/features/schedule/ScheduleCell';
 import {
   calculateScheduleCoverage,
@@ -19,6 +20,8 @@ interface ScheduleGridProps {
   selectedCell?: string;
   onCellClick?: (employee: Employee, date: string) => void;
   onDragCopy?: (employee: Employee, dates: string[], shift: ShiftEntry) => Promise<void>;
+  reorderable?: boolean;
+  onEmployeeReorder?: (sourceEmployeeId: string, targetEmployeeId: string) => void;
 }
 
 export function ScheduleGrid({
@@ -30,6 +33,8 @@ export function ScheduleGrid({
   selectedCell,
   onCellClick,
   onDragCopy,
+  reorderable = false,
+  onEmployeeReorder,
 }: ScheduleGridProps) {
   const [previewDates, setPreviewDates] = useState<string[]>([]);
   const [selectedMobileDate, setSelectedMobileDate] = useState(() => {
@@ -48,6 +53,15 @@ export function ScheduleGrid({
     dates: string[];
   } | null>(null);
   const suppressClickRef = useRef(false);
+  const [draggedEmployeeId, setDraggedEmployeeId] = useState<string>();
+  const [employeeDropTargetId, setEmployeeDropTargetId] = useState<string>();
+  const employeePointerDragRef = useRef<{
+    pointerId: number;
+    employeeId: string;
+    startY: number;
+    dragging: boolean;
+    targetEmployeeId?: string;
+  } | undefined>(undefined);
   const getShift = (employeeId: string, date: string) =>
     shifts.find((s) => s.employeeId === employeeId && s.date === date);
   useEffect(() => {
@@ -73,6 +87,74 @@ export function ScheduleGrid({
   };
   const selectedMobileCoverage =
     coverage.find((item) => item.date === selectedMobileDate) ?? coverage[0];
+
+  const finishEmployeeReorder = (sourceEmployeeId?: string, targetEmployeeId?: string) => {
+    setDraggedEmployeeId(undefined);
+    setEmployeeDropTargetId(undefined);
+    if (sourceEmployeeId && targetEmployeeId && sourceEmployeeId !== targetEmployeeId) {
+      onEmployeeReorder?.(sourceEmployeeId, targetEmployeeId);
+    }
+  };
+
+  const handleEmployeeDragStart = (event: ReactDragEvent<HTMLButtonElement>, employeeId: string) => {
+    setDraggedEmployeeId(employeeId);
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', employeeId);
+  };
+
+  const handleEmployeePointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const drag = employeePointerDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (!drag.dragging && Math.abs(event.clientY - drag.startY) < 8) return;
+    drag.dragging = true;
+    setDraggedEmployeeId(drag.employeeId);
+    const target = document
+      .elementFromPoint(event.clientX, event.clientY)
+      ?.closest<HTMLElement>('[data-schedule-row]')
+      ?.dataset.scheduleRow;
+    if (target) {
+      drag.targetEmployeeId = target;
+      setEmployeeDropTargetId(target);
+    }
+  };
+
+  const handleEmployeePointerUp = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const drag = employeePointerDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    employeePointerDragRef.current = undefined;
+    finishEmployeeReorder(drag.employeeId, drag.dragging ? drag.targetEmployeeId : undefined);
+  };
+
+  const reorderHandle = (employee: Employee) =>
+    reorderable ? (
+      <button
+        type="button"
+        draggable
+        aria-label={`${employee.name} 순서 이동`}
+        title="드래그해서 순서 변경"
+        className="touch-none cursor-grab rounded-lg p-1 text-ink-faint transition-colors hover:bg-brand-beige-light hover:text-ink active:cursor-grabbing"
+        onDragStart={(event) => handleEmployeeDragStart(event, employee.id)}
+        onDragEnd={() => finishEmployeeReorder()}
+        onPointerDown={(event) => {
+          if (event.pointerType === 'mouse') return;
+          employeePointerDragRef.current = {
+            pointerId: event.pointerId,
+            employeeId: employee.id,
+            startY: event.clientY,
+            dragging: false,
+          };
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }}
+        onPointerMove={handleEmployeePointerMove}
+        onPointerUp={handleEmployeePointerUp}
+        onPointerCancel={() => {
+          employeePointerDragRef.current = undefined;
+          finishEmployeeReorder();
+        }}
+      >
+        <GripVertical size={17} strokeWidth={2.2} />
+      </button>
+    ) : null;
 
   const updateDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const drag = dragRef.current;
@@ -182,13 +264,28 @@ export function ScheduleGrid({
           </thead>
           <tbody>
             {employees.map((employee, index) => (
-              <tr key={employee.id}>
+              <tr
+                key={employee.id}
+                data-schedule-row={employee.id}
+                onDragOver={(event) => {
+                  if (!reorderable || !draggedEmployeeId) return;
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = 'move';
+                  setEmployeeDropTargetId(employee.id);
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  finishEmployeeReorder(event.dataTransfer.getData('text/plain') || draggedEmployeeId, employee.id);
+                }}
+                className={employeeDropTargetId === employee.id && draggedEmployeeId !== employee.id ? 'bg-brand-red-light/45' : ''}
+              >
                 <td
                   className={`sticky left-0 z-20 h-[56px] whitespace-nowrap bg-white/95 px-4 align-middle text-[17px] font-bold backdrop-blur-xl ${
                     index > 0 ? 'border-t border-black/[0.035]' : ''
                   } ${employee.id === currentEmployeeId ? 'text-brand-red' : 'text-ink'}`}
                 >
                   <span className="flex items-center gap-2.5">
+                    {reorderHandle(employee)}
                     <span className={`h-2.5 w-2.5 rounded-full ${getEmployeeAccent(employee.name).dot}`} />
                     <span>{employee.name}</span>
                     {employee.isSubstitute && <span className="rounded-full bg-brand-red-light px-2 py-0.5 text-[10px] font-extrabold text-brand-red">대타</span>}
@@ -317,8 +414,15 @@ export function ScheduleGrid({
 
           <div className="divide-y divide-black/[0.045]">
             {employees.map((employee) => (
-              <div key={employee.id} className="grid min-h-[64px] grid-cols-[minmax(100px,1fr)_minmax(130px,1.35fr)] items-center gap-3 py-2">
+              <div
+                key={employee.id}
+                data-schedule-row={employee.id}
+                className={`grid min-h-[64px] grid-cols-[minmax(100px,1fr)_minmax(130px,1.35fr)] items-center gap-3 rounded-xl py-2 transition-colors ${
+                  employeeDropTargetId === employee.id && draggedEmployeeId !== employee.id ? 'bg-brand-red-light/60' : ''
+                }`}
+              >
                 <div className={`flex min-w-0 items-center gap-2.5 px-1 text-[16px] font-bold ${employee.id === currentEmployeeId ? 'text-brand-red' : 'text-ink'}`}>
+                  {reorderHandle(employee)}
                   <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${getEmployeeAccent(employee.name).dot}`} />
                   <span className="truncate">{employee.name}</span>
                   {employee.isSubstitute && <span className="shrink-0 rounded-full bg-brand-red-light px-1.5 py-0.5 text-[9px] font-extrabold text-brand-red">대타</span>}

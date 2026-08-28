@@ -23,11 +23,14 @@ import {
 import type { Employee, ScheduleWeek, ShiftEntry } from '@/data/types';
 import { BellRing, ChevronLeft, ChevronRight, ClipboardCopy, LoaderCircle, Trash2, Zap } from 'lucide-react';
 
+const SCHEDULE_EMPLOYEE_ORDER_KEY = 'ebaesan:schedule-employee-order:v1';
+
 const FIXED_EMPLOYEE_ORDER = [
   '박경찬',
   '김경재',
   '김하은',
   '채린',
+  '투안',
   '차우',
   '구동욱',
   '이도윤',
@@ -36,7 +39,6 @@ const FIXED_EMPLOYEE_ORDER = [
   '이철영',
   '후에',
   '유준영',
-  '투안',
   '프엉 안',
 ] as const;
 
@@ -64,13 +66,29 @@ export function SchedulePage() {
   const exportRef = useRef<HTMLDivElement>(null);
 
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employeeOrder, setEmployeeOrder] = useState<string[]>(() => {
+    try {
+      const saved = window.localStorage.getItem(SCHEDULE_EMPLOYEE_ORDER_KEY);
+      const parsed: unknown = saved ? JSON.parse(saved) : [];
+      return Array.isArray(parsed) && parsed.every((id) => typeof id === 'string') ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
   const [week, setWeek] = useState<ScheduleWeek>({ id: '', weekStartDate: '', shifts: [] });
   const weekDates = useMemo(() => getWeekDates(weekStart), [weekStart]);
   const sortedEmployees = useMemo(
-    () =>
-      employees
+    () => {
+      const savedOrderIndex = new Map(employeeOrder.map((id, index) => [id, index]));
+      return employees
         .map((employee, originalIndex) => ({ employee, originalIndex }))
         .sort((a, b) => {
+          const aSavedOrder = savedOrderIndex.get(a.employee.id);
+          const bSavedOrder = savedOrderIndex.get(b.employee.id);
+          if (aSavedOrder !== undefined && bSavedOrder !== undefined) return aSavedOrder - bSavedOrder;
+          if (aSavedOrder !== undefined) return -1;
+          if (bSavedOrder !== undefined) return 1;
+
           const aOrder = EMPLOYEE_ORDER_INDEX.get(a.employee.name);
           const bOrder = EMPLOYEE_ORDER_INDEX.get(b.employee.name);
 
@@ -79,9 +97,23 @@ export function SchedulePage() {
           if (bOrder !== undefined) return 1;
           return a.originalIndex - b.originalIndex;
         })
-        .map(({ employee }) => employee),
-    [employees]
+        .map(({ employee }) => employee);
+    },
+    [employeeOrder, employees]
   );
+
+  const handleEmployeeReorder = (sourceEmployeeId: string, targetEmployeeId: string) => {
+    if (!isAdmin || sourceEmployeeId === targetEmployeeId) return;
+    const nextOrder = sortedEmployees.map((employee) => employee.id);
+    const sourceIndex = nextOrder.indexOf(sourceEmployeeId);
+    const targetIndex = nextOrder.indexOf(targetEmployeeId);
+    if (sourceIndex < 0 || targetIndex < 0) return;
+    const [movedId] = nextOrder.splice(sourceIndex, 1);
+    nextOrder.splice(targetIndex, 0, movedId);
+    setEmployeeOrder(nextOrder);
+    window.localStorage.setItem(SCHEDULE_EMPLOYEE_ORDER_KEY, JSON.stringify(nextOrder));
+    showToast('직원 표시 순서를 변경했습니다.', 'success');
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -292,6 +324,8 @@ export function SchedulePage() {
         currentEmployeeId={!isAdmin ? effectiveEmployeeId : undefined}
         clickable={isAdmin}
         selectedCell={selectedCell}
+        reorderable={isAdmin}
+        onEmployeeReorder={handleEmployeeReorder}
         onDragCopy={isAdmin ? handleDragCopy : undefined}
         onCellClick={
           isAdmin
