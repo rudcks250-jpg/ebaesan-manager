@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { GripVertical } from 'lucide-react';
 import { ScheduleCell } from '@/features/schedule/ScheduleCell';
 import {
@@ -96,13 +96,20 @@ export function ScheduleGrid({
     }
   };
 
-  const handleEmployeeDragStart = (event: ReactDragEvent<HTMLButtonElement>, employeeId: string) => {
-    setDraggedEmployeeId(employeeId);
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('text/plain', employeeId);
+  const handleEmployeePointerDown = (event: ReactPointerEvent<HTMLElement>, employeeId: string) => {
+    if (!reorderable || event.button !== 0) return;
+    employeePointerDragRef.current = {
+      pointerId: event.pointerId,
+      employeeId,
+      startY: event.clientY,
+      dragging: false,
+      targetEmployeeId: employeeId,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
   };
 
-  const handleEmployeePointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
+  const handleEmployeePointerMove = (event: ReactPointerEvent<HTMLElement>) => {
     const drag = employeePointerDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     if (!drag.dragging && Math.abs(event.clientY - drag.startY) < 8) return;
@@ -118,42 +125,27 @@ export function ScheduleGrid({
     }
   };
 
-  const handleEmployeePointerUp = (event: ReactPointerEvent<HTMLButtonElement>) => {
+  const handleEmployeePointerUp = (event: ReactPointerEvent<HTMLElement>) => {
     const drag = employeePointerDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     employeePointerDragRef.current = undefined;
     finishEmployeeReorder(drag.employeeId, drag.dragging ? drag.targetEmployeeId : undefined);
   };
 
+  const cancelEmployeePointerDrag = () => {
+    employeePointerDragRef.current = undefined;
+    finishEmployeeReorder();
+  };
+
   const reorderHandle = (employee: Employee) =>
     reorderable ? (
-      <button
-        type="button"
-        draggable
-        aria-label={`${employee.name} 순서 이동`}
-        title="드래그해서 순서 변경"
-        className="touch-none cursor-grab rounded-lg p-1 text-ink-faint transition-colors hover:bg-brand-beige-light hover:text-ink active:cursor-grabbing"
-        onDragStart={(event) => handleEmployeeDragStart(event, employee.id)}
-        onDragEnd={() => finishEmployeeReorder()}
-        onPointerDown={(event) => {
-          if (event.pointerType === 'mouse') return;
-          employeePointerDragRef.current = {
-            pointerId: event.pointerId,
-            employeeId: employee.id,
-            startY: event.clientY,
-            dragging: false,
-          };
-          event.currentTarget.setPointerCapture(event.pointerId);
-        }}
-        onPointerMove={handleEmployeePointerMove}
-        onPointerUp={handleEmployeePointerUp}
-        onPointerCancel={() => {
-          employeePointerDragRef.current = undefined;
-          finishEmployeeReorder();
-        }}
+      <span
+        aria-hidden="true"
+        title={`${employee.name} 행을 잡고 드래그하세요`}
+        className="rounded-lg bg-brand-beige-light p-1 text-ink-soft"
       >
         <GripVertical size={17} strokeWidth={2.2} />
-      </button>
+      </span>
     ) : null;
 
   const updateDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -267,22 +259,18 @@ export function ScheduleGrid({
               <tr
                 key={employee.id}
                 data-schedule-row={employee.id}
-                onDragOver={(event) => {
-                  if (!reorderable || !draggedEmployeeId) return;
-                  event.preventDefault();
-                  event.dataTransfer.dropEffect = 'move';
-                  setEmployeeDropTargetId(employee.id);
-                }}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  finishEmployeeReorder(event.dataTransfer.getData('text/plain') || draggedEmployeeId, employee.id);
-                }}
                 className={employeeDropTargetId === employee.id && draggedEmployeeId !== employee.id ? 'bg-brand-red-light/45' : ''}
               >
                 <td
+                  aria-label={reorderable ? `${employee.name} 순서 이동` : undefined}
+                  title={reorderable ? '직원 이름 영역을 잡고 위·아래로 드래그하세요' : undefined}
+                  onPointerDown={(event) => handleEmployeePointerDown(event, employee.id)}
+                  onPointerMove={handleEmployeePointerMove}
+                  onPointerUp={handleEmployeePointerUp}
+                  onPointerCancel={cancelEmployeePointerDrag}
                   className={`sticky left-0 z-20 h-[56px] whitespace-nowrap bg-white/95 px-4 align-middle text-[17px] font-bold backdrop-blur-xl ${
                     index > 0 ? 'border-t border-black/[0.035]' : ''
-                  } ${employee.id === currentEmployeeId ? 'text-brand-red' : 'text-ink'}`}
+                  } ${employee.id === currentEmployeeId ? 'text-brand-red' : 'text-ink'} ${reorderable ? 'touch-none cursor-grab select-none active:cursor-grabbing' : ''}`}
                 >
                   <span className="flex items-center gap-2.5">
                     {reorderHandle(employee)}
@@ -421,7 +409,16 @@ export function ScheduleGrid({
                   employeeDropTargetId === employee.id && draggedEmployeeId !== employee.id ? 'bg-brand-red-light/60' : ''
                 }`}
               >
-                <div className={`flex min-w-0 items-center gap-2.5 px-1 text-[16px] font-bold ${employee.id === currentEmployeeId ? 'text-brand-red' : 'text-ink'}`}>
+                <div
+                  role={reorderable ? 'button' : undefined}
+                  tabIndex={reorderable ? 0 : undefined}
+                  aria-label={reorderable ? `${employee.name} 순서 이동` : undefined}
+                  onPointerDown={(event) => handleEmployeePointerDown(event, employee.id)}
+                  onPointerMove={handleEmployeePointerMove}
+                  onPointerUp={handleEmployeePointerUp}
+                  onPointerCancel={cancelEmployeePointerDrag}
+                  className={`flex min-w-0 touch-none items-center gap-2.5 px-1 text-[16px] font-bold ${employee.id === currentEmployeeId ? 'text-brand-red' : 'text-ink'} ${reorderable ? 'cursor-grab select-none active:cursor-grabbing' : ''}`}
+                >
                   {reorderHandle(employee)}
                   <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${getEmployeeAccent(employee.name).dot}`} />
                   <span className="truncate">{employee.name}</span>
