@@ -102,7 +102,10 @@ export const authService = {
     if (!authUser) return null;
     const foundEmployee = await employeeRepository.findByAuthUserId(authUser.id);
     const employee = foundEmployee ? await employeeRepository.normalizeAdministratorProfile(foundEmployee) : undefined;
-    if (!employee) return null;
+    if (!employee || employee.status !== 'active') {
+      await supabase.auth.signOut();
+      return null;
+    }
     return { employeeId: employee.id, name: employee.name, role: employee.role };
   },
 

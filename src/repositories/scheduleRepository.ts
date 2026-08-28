@@ -79,6 +79,17 @@ export const scheduleRepository = {
     return (data ?? []).map(rowToShift);
   },
 
+  async findFutureByEmployee(employeeId: string, afterDate: string): Promise<ShiftEntry[]> {
+    const { data, error } = await supabase
+      .from('schedules')
+      .select('*')
+      .eq('employee_id', employeeId)
+      .gt('date', afterDate)
+      .order('date');
+    if (error) throw error;
+    return (data ?? []).map(rowToShift);
+  },
+
   async findOne(employeeId: string, date: string): Promise<ShiftEntry | undefined> {
     const { data, error } = await supabase
       .from('schedules')

@@ -28,12 +28,16 @@ export function EmployeeCard({
   employee,
   onOpenDetail,
   onEdit,
-  onDelete,
+  onResign,
+  onRestore,
+  lastWorkDate,
 }: {
   employee: Employee;
   onOpenDetail: () => void;
   onEdit: () => void;
-  onDelete: () => void;
+  onResign: () => void;
+  onRestore: () => void;
+  lastWorkDate?: string;
 }) {
   const wageLabel = employee.wageType === 'hourly' ? '시급' : '월급';
   const wageValue = employee.wageType === 'hourly' ? employee.hourlyWage : employee.monthlySalary;
@@ -69,6 +73,14 @@ export function EmployeeCard({
 
       {/* 고용 형태 */}
       <p className="mt-2 text-sm font-semibold text-ink-soft">{employee.position}</p>
+      {employee.status === 'resigned' && (
+        <div className="mt-3 rounded-xl bg-brand-beige-light p-3 text-xs text-ink-soft">
+          <p><span className="font-semibold">입사일</span> {employee.hireDate || '-'}</p>
+          <p className="mt-1"><span className="font-semibold">퇴사일</span> {employee.resignDate || '-'}</p>
+          <p className="mt-1"><span className="font-semibold">마지막 근무일</span> {lastWorkDate || '-'}</p>
+          {employee.resignMemo && <p className="mt-2 leading-relaxed">{employee.resignMemo}</p>}
+        </div>
+      )}
 
       {/* 연락처 */}
       <div className={`mt-1.5 flex items-center gap-1.5 text-sm ${phoneNumber ? 'text-ink-soft' : 'text-ink-faint'}`}>
@@ -111,15 +123,27 @@ export function EmployeeCard({
         >
           정보 수정
         </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-          className="flex-1 text-sm font-semibold text-status-rejected py-2.5 rounded-xl bg-surface border border-status-rejected/15 hover:bg-status-rejected hover:text-white press-scale"
-        >
-          삭제
-        </button>
+        {employee.status === 'resigned' ? (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onRestore();
+            }}
+            className="flex-1 rounded-xl bg-status-working-bg py-2.5 text-sm font-semibold text-status-working press-scale"
+          >
+            재직 복구
+          </button>
+        ) : employee.role !== 'admin' ? (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onResign();
+            }}
+            className="flex-1 rounded-xl border border-status-rejected/15 bg-surface py-2.5 text-sm font-semibold text-status-rejected hover:bg-status-rejected hover:text-white press-scale"
+          >
+            퇴사 처리
+          </button>
+        ) : null}
       </div>
     </Card>
   );

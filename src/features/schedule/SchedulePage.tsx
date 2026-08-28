@@ -18,7 +18,6 @@ import {
   addWeeks,
   parseDate,
   formatDate,
-  formatMonthDay,
 } from '@/utils/date';
 import type { Employee, ScheduleWeek, ShiftEntry } from '@/data/types';
 import { BellRing, ChevronLeft, ChevronRight, ClipboardCopy, LoaderCircle, Trash2, Zap } from 'lucide-react';
@@ -152,7 +151,7 @@ export function SchedulePage() {
     setWeekStart(formatDate(addWeeks(parseDate(weekStart), delta)));
   };
 
-  const rangeLabel = `${formatMonthDay(weekDates[0])} ~ ${formatMonthDay(weekDates[6])}`;
+  const rangeLabel = `${weekDates[0].replaceAll('-', '.')} ~ ${weekDates[6].replaceAll('-', '.')}`;
 
   const handleCopyPreviousWeek = async () => {
     if (!session || processing) return;
@@ -267,9 +266,32 @@ export function SchedulePage() {
   };
 
   return (
-    <Layout title="스케줄" showGreeting={false}>
-      {isAdmin && (
-        <div className="flex flex-wrap items-center justify-end gap-2 mb-4">
+    <Layout title="스케줄" showGreeting={false} wide>
+      <section className="mb-5 rounded-card border border-border bg-surface p-3 shadow-premium">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              onClick={() => goWeek(-1)}
+              aria-label="이전 주"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-beige-light text-ink-soft hover:bg-brand-beige press-scale"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <div className="min-w-0 flex-1 text-center xl:min-w-[260px]">
+              <p className="text-[11px] font-bold uppercase tracking-[.16em] text-ink-faint">선택한 주</p>
+              <p className="mt-0.5 truncate text-lg font-extrabold tracking-tight text-ink sm:text-2xl">{rangeLabel}</p>
+            </div>
+            <button
+              onClick={() => goWeek(1)}
+              aria-label="다음 주"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-beige-light text-ink-soft hover:bg-brand-beige press-scale"
+            >
+              <ChevronRight size={18} />
+            </button>
+          </div>
+
+          {isAdmin && (
+            <div className="flex flex-wrap items-center justify-center gap-2 xl:justify-end">
           <Button size="sm" onClick={() => void handlePublishSchedule()} disabled={publishing}>
             <span className="inline-flex items-center gap-1.5">
               {publishing ? <LoaderCircle size={15} className="animate-spin" /> : <BellRing size={15} />} 스케줄 배포
@@ -295,27 +317,10 @@ export function SchedulePage() {
               <Zap size={15} /> 일괄등록
             </span>
           </Button>
+            </div>
+          )}
         </div>
-      )}
-
-      {/* 상단: 좌우 화살표 + 가운데 날짜 범위 + 우측 일괄등록 */}
-      <div className="flex items-center gap-3 mb-6 bg-surface border border-border shadow-premium rounded-card p-3">
-        <button
-          onClick={() => goWeek(-1)}
-          aria-label="이전 주"
-          className="w-10 h-10 shrink-0 flex items-center justify-center rounded-xl text-ink-soft bg-brand-beige-light hover:bg-brand-beige press-scale"
-        >
-          <ChevronLeft size={18} />
-        </button>
-        <p className="flex-1 text-center font-bold text-ink text-lg sm:text-xl tracking-tight">{rangeLabel}</p>
-        <button
-          onClick={() => goWeek(1)}
-          aria-label="다음 주"
-          className="w-10 h-10 shrink-0 flex items-center justify-center rounded-xl text-ink-soft bg-brand-beige-light hover:bg-brand-beige press-scale"
-        >
-          <ChevronRight size={18} />
-        </button>
-      </div>
+      </section>
 
       <ScheduleGrid
         employees={sortedEmployees}

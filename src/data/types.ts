@@ -26,6 +26,7 @@ export interface Employee {
   status: EmployeeStatus;
   hireDate: string; // YYYY-MM-DD
   resignDate?: string;
+  resignMemo?: string;
   isFirstLogin: boolean; // true면 로그인 후 비밀번호 변경 강제
   monthlyLeaveEligible?: boolean;
   lastLoginAt?: string; // 마지막 로그인 시각 (ISO)

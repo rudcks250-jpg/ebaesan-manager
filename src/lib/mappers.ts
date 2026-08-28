@@ -18,6 +18,7 @@ export function rowToEmployee(row: any): Employee {
     status: row.status,
     hireDate: row.hire_date ?? '',
     resignDate: row.resign_date ?? undefined,
+    resignMemo: row.resign_memo ?? undefined,
     isFirstLogin: row.is_first_login,
     monthlyLeaveEligible: row.monthly_leave_eligible ?? false,
     lastLoginAt: row.last_login_at ?? undefined,
@@ -39,6 +40,7 @@ export function employeeToRow(patch: Partial<Employee>): Record<string, unknown>
   if (patch.status !== undefined) row.status = patch.status;
   if (patch.hireDate !== undefined) row.hire_date = patch.hireDate;
   if (patch.resignDate !== undefined) row.resign_date = patch.resignDate;
+  if (patch.resignMemo !== undefined) row.resign_memo = patch.resignMemo;
   if (patch.isFirstLogin !== undefined) row.is_first_login = patch.isFirstLogin;
   if (patch.monthlyLeaveEligible !== undefined) row.monthly_leave_eligible = patch.monthlyLeaveEligible;
   if (patch.lastLoginAt !== undefined) row.last_login_at = patch.lastLoginAt;

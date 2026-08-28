@@ -31,7 +31,6 @@ export function EmployeeFormModal({ open, onClose, onSaved, employee }: Employee
   );
   const [status, setStatus] = useState<EmployeeStatus>(employee?.status ?? 'active');
   const [error, setError] = useState('');
-  const [confirmResign, setConfirmResign] = useState(false);
   const [confirmResetPw, setConfirmResetPw] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -69,7 +68,7 @@ export function EmployeeFormModal({ open, onClose, onSaved, employee }: Employee
         });
         await employeeService.changeRole(employee.id, role);
         await employeeService.changeWage(employee.id, wageType, wageAmount);
-        await employeeService.setStatus(employee.id, status);
+        if (employee.status !== 'resigned') await employeeService.setStatus(employee.id, status);
         showToast('직원 정보가 수정되었습니다.');
       } else {
         await employeeService.create({
@@ -166,22 +165,10 @@ export function EmployeeFormModal({ open, onClose, onSaved, employee }: Employee
           onChange={(e) => setPayday(e.target.value)}
           placeholder="예: 매월 10일, 매월 말일"
         />
-        {isEdit && (
-          <Select
-            label="재직 상태"
-            value={status}
-            onChange={(e) => {
-              const next = e.target.value as EmployeeStatus;
-              if (next === 'resigned') {
-                setConfirmResign(true);
-                return;
-              }
-              setStatus(next);
-            }}
-          >
+        {isEdit && employee?.status !== 'resigned' && (
+          <Select label="재직 상태" value={status} onChange={(event) => setStatus(event.target.value as EmployeeStatus)}>
             <option value="active">재직</option>
             <option value="inactive">비활성</option>
-            <option value="resigned">퇴사</option>
           </Select>
         )}
         {error && <p className="text-xs text-status-rejected -mt-2 mb-3">{error}</p>}
@@ -196,15 +183,6 @@ export function EmployeeFormModal({ open, onClose, onSaved, employee }: Employee
         )}
       </Modal>
 
-      <ConfirmDialog
-        open={confirmResign}
-        title="퇴사 처리"
-        description="퇴사 처리하면 해당 직원은 더 이상 로그인할 수 없습니다. 데이터는 유지됩니다. 계속할까요?"
-        confirmLabel="퇴사 처리"
-        danger
-        onConfirm={() => setStatus('resigned')}
-        onClose={() => setConfirmResign(false)}
-      />
       <ConfirmDialog
         open={confirmResetPw}
         title="비밀번호 초기화"

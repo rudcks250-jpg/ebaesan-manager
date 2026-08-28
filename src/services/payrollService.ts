@@ -138,8 +138,14 @@ export const payrollService = {
   // 지정된 지급월의 전 직원 급여 요약 (직원마다 자신의 급여일 기준 기간으로 계산)
   async getMonthlyPayroll(year: number, month: number): Promise<MonthlyPayrollSummary> {
     const yearMonth = `${year}-${String(month).padStart(2, '0')}`;
-    const allEmployees = await employeeService.listActive();
-    const employees = allEmployees.filter((e) => e.role !== 'admin');
+    const allEmployees = await employeeService.list();
+    const employees = allEmployees.filter((employee) => {
+      if (employee.role === 'admin' || !['active', 'resigned'].includes(employee.status)) return false;
+      const period = this.getPayrollPeriod(employee.payday, year, month);
+      if (employee.hireDate && employee.hireDate > period.end) return false;
+      if (employee.resignDate && employee.resignDate < period.start) return false;
+      return true;
+    });
 
     const rows: EmployeePayroll[] = await Promise.all(
       employees.map(async (employee) => {

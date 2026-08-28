@@ -13,9 +13,11 @@ interface EmployeeDetailModalProps {
   onClose: () => void;
   onChanged: () => void;
   onEdit: () => void;
+  onResign: () => void;
+  onRestore: () => void;
 }
 
-export function EmployeeDetailModal({ employee, onClose, onChanged, onEdit }: EmployeeDetailModalProps) {
+export function EmployeeDetailModal({ employee, onClose, onChanged, onEdit, onResign, onRestore }: EmployeeDetailModalProps) {
   const { showToast } = useToast();
   const [confirmReset, setConfirmReset] = useState(false);
 
@@ -42,11 +44,16 @@ export function EmployeeDetailModal({ employee, onClose, onChanged, onEdit }: Em
         onClose={onClose}
         title="직원 상세 정보"
         footer={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="secondary" fullWidth onClick={onEdit}>
               정보 수정
             </Button>
-            <Button variant="danger" fullWidth onClick={() => setConfirmReset(true)}>
+            {employee.status === 'resigned' ? (
+              <Button fullWidth onClick={onRestore}>재직 복구</Button>
+            ) : employee.role !== 'admin' ? (
+              <Button variant="danger" fullWidth onClick={onResign}>퇴사 처리</Button>
+            ) : null}
+            <Button variant="secondary" fullWidth onClick={() => setConfirmReset(true)}>
               비밀번호 초기화
             </Button>
           </div>
@@ -58,6 +65,12 @@ export function EmployeeDetailModal({ employee, onClose, onChanged, onEdit }: Em
           <p className="text-sm font-semibold text-ink">{wageText}</p>
           <p className="text-sm text-ink-soft">개인번호 : {employee.phone}</p>
           <p className="text-sm text-ink-soft">급여일 : {employee.payday ?? '미설정'}</p>
+          {employee.status === 'resigned' && (
+            <div className="mt-3 rounded-xl bg-brand-beige-light p-3 text-xs text-ink-soft">
+              <p>퇴사일 : {employee.resignDate || '-'}</p>
+              {employee.resignMemo && <p className="mt-1">퇴사 메모 : {employee.resignMemo}</p>}
+            </div>
+          )}
         </div>
 
         <div className="rounded-control bg-brand-beige-light p-4 mb-4">

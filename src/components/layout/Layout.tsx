@@ -24,7 +24,7 @@ const PAGE_META = {
   '근로시간': { description: '출퇴근과 누적 근무시간을 정확하게 기록하세요.', icon: Clock3 },
 };
 
-export function Layout({ title, children, showGreeting = true }: { title: string; children: ReactNode; showGreeting?: boolean }) {
+export function Layout({ title, children, showGreeting = true, wide = false }: { title: string; children: ReactNode; showGreeting?: boolean; wide?: boolean }) {
   const location = useLocation();
   const { isStaffPreview, exitStaffPreview } = useAuth();
 
@@ -44,7 +44,7 @@ export function Layout({ title, children, showGreeting = true }: { title: string
           </div>
         )}
         <Header title={title} showGreeting={showGreeting} />
-        <main className="max-w-[1280px] mx-auto px-5 sm:px-8 lg:px-12 sm:py-11 pb-28 sm:pb-16">
+        <main className={`${wide ? 'max-w-[1680px] lg:px-6' : 'max-w-[1280px] lg:px-12'} mx-auto px-5 sm:px-8 sm:py-11 pb-28 sm:pb-16`}>
           <PageHeader title={title} description={PAGE_META[title as keyof typeof PAGE_META]?.description} icon={PAGE_META[title as keyof typeof PAGE_META]?.icon} />
           <div key={location.pathname} className="animate-page-fade">
             {children}

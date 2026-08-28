@@ -166,6 +166,27 @@ export const employeeRepository = {
     return data ? rowToEmployee(data) : undefined;
   },
 
+  async findLastWorkDates(employeeIds: string[]): Promise<Record<string, string>> {
+    if (employeeIds.length === 0) return {};
+    const [attendanceResult, scheduleResult] = await Promise.all([
+      supabase.from('attendance').select('employee_id,date').in('employee_id', employeeIds),
+      supabase
+        .from('schedules')
+        .select('employee_id,date,status')
+        .in('employee_id', employeeIds)
+        .eq('status', 'working'),
+    ]);
+    if (attendanceResult.error) throw attendanceResult.error;
+    if (scheduleResult.error) throw scheduleResult.error;
+    const latest: Record<string, string> = {};
+    for (const row of [...(attendanceResult.data ?? []), ...(scheduleResult.data ?? [])]) {
+      const employeeId = String(row.employee_id);
+      const date = String(row.date);
+      if (!latest[employeeId] || latest[employeeId] < date) latest[employeeId] = date;
+    }
+    return latest;
+  },
+
   async update(
     id: string,
     patch: Partial<Employee>,

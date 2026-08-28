@@ -9,6 +9,7 @@ import { useToast } from '@/components/common/Toast';
 import { EmployeeCard } from '@/features/employee/EmployeeCard';
 import { EmployeeFormModal } from '@/features/employee/EmployeeFormModal';
 import { EmployeeDetailModal } from '@/features/employee/EmployeeDetailModal';
+import { EmployeeResignModal } from '@/features/employee/EmployeeResignModal';
 import { employeeService, type LoginStatusFilter } from '@/services/employeeService';
 import type { Employee, EmployeeStatus, WageType } from '@/data/types';
 import { Users, UserCheck, CircleDollarSign, UserPlus, UserRoundCheck, CircleX } from 'lucide-react';
@@ -39,13 +40,15 @@ export function EmployeeListPage() {
   const { showToast } = useToast();
   const [refreshKey, setRefreshKey] = useState(0);
   const [keyword, setKeyword] = useState('');
-  const [statusFilter, setStatusFilter] = useState<EmployeeStatus | ''>('');
+  const [statusFilter, setStatusFilter] = useState<EmployeeStatus | ''>('active');
   const [wageFilter, setWageFilter] = useState<WageType | ''>('');
   const [loginFilter, setLoginFilter] = useState<LoginStatusFilter | ''>('');
   const [formOpen, setFormOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Employee | undefined>(undefined);
   const [detailTarget, setDetailTarget] = useState<Employee | undefined>(undefined);
-  const [deleteTarget, setDeleteTarget] = useState<Employee | undefined>(undefined);
+  const [resignTarget, setResignTarget] = useState<Employee | undefined>(undefined);
+  const [restoreTarget, setRestoreTarget] = useState<Employee | undefined>(undefined);
+  const [lastWorkDates, setLastWorkDates] = useState<Record<string, string>>({});
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
   const [creatingAccounts, setCreatingAccounts] = useState(false);
   const [accountResult, setAccountResult] = useState<BulkAccountCreationResult | undefined>();
@@ -92,6 +95,15 @@ export function EmployeeListPage() {
     };
   }, [keyword, statusFilter, wageFilter, positionFilter, loginFilter, refreshKey, showToast]);
 
+  useEffect(() => {
+    const resignedIds = employees.filter((employee) => employee.status === 'resigned').map((employee) => employee.id);
+    if (resignedIds.length === 0) {
+      setLastWorkDates({});
+      return;
+    }
+    employeeService.getLastWorkDates(resignedIds).then(setLastWorkDates).catch(() => setLastWorkDates({}));
+  }, [employees]);
+
   const visibleEmployees = employees
     .filter((employee) => {
       const payday = getEmployeePaydayInfo(employee.payday);
@@ -120,18 +132,18 @@ export function EmployeeListPage() {
     setFormNonce((n) => n + 1);
   };
 
-  const handleDelete = async () => {
-    if (!deleteTarget) return;
+  const handleRestore = async () => {
+    if (!restoreTarget) return;
     try {
-      await employeeService.deleteEmployee(deleteTarget.id);
+      await employeeService.restore(restoreTarget.id);
       setDetailTarget(undefined);
       setRefreshKey((k) => k + 1);
-      showToast(`${deleteTarget.name} 직원이 삭제되었습니다.`);
+      showToast(`${restoreTarget.name} 직원을 재직 복구했습니다.`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : '직원 삭제에 실패했습니다.';
+      const message = error instanceof Error ? error.message : '재직 복구에 실패했습니다.';
       showToast(message, 'error');
     } finally {
-      setDeleteTarget(undefined);
+      setRestoreTarget(undefined);
     }
   };
 
@@ -179,6 +191,23 @@ export function EmployeeListPage() {
         <StatCard icon={Users} label="전체 직원" value={`${employees.length}명`} />
         <StatCard icon={UserCheck} label="재직 중" value={`${employees.filter((e) => e.status === 'active').length}명`} tone="green" />
         <StatCard icon={CircleDollarSign} label="시급제" value={`${employees.filter((e) => e.wageType === 'hourly').length}명`} tone="orange" />
+      </div>
+
+      <div className="mb-3 grid grid-cols-2 gap-2 rounded-2xl bg-brand-beige-light p-1.5">
+        <button
+          type="button"
+          onClick={() => setStatusFilter('active')}
+          className={`rounded-xl px-3 py-2.5 text-sm font-bold transition-all ${statusFilter === 'active' ? 'bg-white text-ink shadow-sm' : 'text-ink-soft'}`}
+        >
+          재직 중
+        </button>
+        <button
+          type="button"
+          onClick={() => setStatusFilter('resigned')}
+          className={`rounded-xl px-3 py-2.5 text-sm font-bold transition-all ${statusFilter === 'resigned' ? 'bg-white text-ink shadow-sm' : 'text-ink-soft'}`}
+        >
+          퇴사자
+        </button>
       </div>
 
       <div className="bg-surface border border-border shadow-premium rounded-card p-4 grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
@@ -274,7 +303,9 @@ export function EmployeeListPage() {
               employee={emp}
               onOpenDetail={() => setDetailTarget(emp)}
               onEdit={() => openEdit(emp)}
-              onDelete={() => setDeleteTarget(emp)}
+              onResign={() => setResignTarget(emp)}
+              onRestore={() => setRestoreTarget(emp)}
+              lastWorkDate={lastWorkDates[emp.id]}
             />
           ))}
         </div>
@@ -294,23 +325,39 @@ export function EmployeeListPage() {
           onClose={() => setDetailTarget(undefined)}
           onChanged={() => setRefreshKey((k) => k + 1)}
           onEdit={() => openEdit(detailTarget)}
+          onResign={() => {
+            setResignTarget(detailTarget);
+            setDetailTarget(undefined);
+          }}
+          onRestore={() => setRestoreTarget(detailTarget)}
+        />
+      )}
+
+      {resignTarget && (
+        <EmployeeResignModal
+          employee={resignTarget}
+          onClose={() => setResignTarget(undefined)}
+          onCompleted={(deletedScheduleCount) => {
+            showToast(`${resignTarget.name} 직원을 퇴사 처리했습니다.${deletedScheduleCount > 0 ? ` 미래 스케줄 ${deletedScheduleCount}건을 정리했습니다.` : ''}`);
+            setResignTarget(undefined);
+            setRefreshKey((key) => key + 1);
+          }}
         />
       )}
 
       <ConfirmDialog
-        open={!!deleteTarget}
-        title="직원 삭제"
+        open={!!restoreTarget}
+        title="재직 복구"
         description={
-          deleteTarget
-            ? `${deleteTarget.name} 직원과 로그인 계정을 완전히 삭제합니다. 관련 근무·스케줄 데이터도 삭제되며 되돌릴 수 없습니다. 계속할까요?`
+          restoreTarget
+            ? `${restoreTarget.name} 직원을 재직 상태로 복구합니다. 이미 정리된 미래 스케줄은 자동 복원되지 않습니다.`
             : undefined
         }
-        confirmLabel="삭제"
-        danger
+        confirmLabel="복구"
         onConfirm={() => {
-          void handleDelete();
+          void handleRestore();
         }}
-        onClose={() => setDeleteTarget(undefined)}
+        onClose={() => setRestoreTarget(undefined)}
       />
 
       <Modal

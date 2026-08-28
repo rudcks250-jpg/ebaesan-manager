@@ -59,7 +59,7 @@ export function ScheduleCell({
             ? '월차'
             : '휴무'
       }
-      className={`group/cell flex min-h-11 w-full touch-pan-y select-none items-center justify-center rounded-[16px] px-1.5 transition-all duration-150 ${
+      className={`group/cell flex min-h-10 w-full touch-pan-y select-none items-center justify-center rounded-xl px-0.5 transition-all duration-150 ${
         clickable ? 'cursor-pointer hover:bg-brand-red-light/45 active:scale-[.98]' : 'cursor-default'
       } ${isOwnRow ? 'bg-brand-red-light/20' : ''} ${
         selected ? 'bg-brand-red-light/70 shadow-[inset_0_0_0_2px_rgba(0,122,255,.28)]' : ''
@@ -67,19 +67,19 @@ export function ScheduleCell({
     >
       {working ? (
         <span
-          className={`flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] px-3.5 py-2 text-[15px] font-semibold tabular-nums whitespace-nowrap transition-all duration-150 ${accent.soft} ${accent.text} ${
+          className={`flex min-h-10 w-full items-center justify-center gap-1 rounded-xl px-1 py-1.5 text-[12px] font-semibold tabular-nums whitespace-nowrap transition-all duration-150 lg:text-[13px] 2xl:text-[14px] ${accent.soft} ${accent.text} ${
             clickable ? 'group-hover/cell:-translate-y-0.5 group-hover/cell:shadow-[0_8px_18px_-13px_rgba(0,0,0,.5)]' : ''
           }`}
         >
-          <span className={`h-2 w-2 shrink-0 rounded-full ${accent.dot}`} aria-hidden="true" />
+          <span className={`hidden h-1.5 w-1.5 shrink-0 rounded-full xl:block ${accent.dot}`} aria-hidden="true" />
           {shortTime(startLabel)}-{shortTime(endLabel)}
         </span>
       ) : monthlyLeave ? (
-        <span className="flex min-h-11 w-full items-center justify-center rounded-[14px] bg-status-working-bg px-3 py-2 text-[13px] font-semibold text-status-working">
+        <span className="flex min-h-10 w-full items-center justify-center rounded-xl bg-status-working-bg px-1 py-1.5 text-[12px] font-semibold text-status-working">
           월차
         </span>
       ) : (
-        <span className="flex min-h-11 w-full items-center justify-center px-3 py-2 text-[13px] font-medium text-[#9CA3AF]">
+        <span className="flex min-h-10 w-full items-center justify-center px-1 py-1.5 text-[12px] font-medium text-[#9CA3AF]">
           휴무
         </span>
       )}

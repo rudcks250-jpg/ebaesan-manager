@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabaseClient';
 import { employeeRepository } from '@/repositories/employeeRepository';
+import { scheduleRepository } from '@/repositories/scheduleRepository';
 import type { Employee, EmployeeStatus, UserRole, WageType } from '@/data/types';
 
 export interface CreateEmployeeInput {
@@ -146,6 +147,29 @@ export const employeeService = {
     // service role 권한이 필요합니다. 필요 시 create-employee와 같은 방식으로
     // 별도 Edge Function(disable-employee)을 추가해 처리해주세요.
     return employeeRepository.update(id, patch);
+  },
+
+  async previewFutureSchedules(id: string, resignDate: string) {
+    return scheduleRepository.findFutureByEmployee(id, resignDate);
+  },
+
+  async resign(id: string, resignDate: string, resignMemo?: string): Promise<number> {
+    const { data, error } = await supabase.rpc('resign_employee', {
+      p_employee_id: id,
+      p_resign_date: resignDate,
+      p_resign_memo: resignMemo?.trim() || null,
+    });
+    if (error) throw error;
+    return Number(data) || 0;
+  },
+
+  async restore(id: string): Promise<void> {
+    const { error } = await supabase.rpc('restore_employee', { p_employee_id: id });
+    if (error) throw error;
+  },
+
+  async getLastWorkDates(employeeIds: string[]): Promise<Record<string, string>> {
+    return employeeRepository.findLastWorkDates(employeeIds);
   },
 
   async changeRole(id: string, role: UserRole): Promise<Employee | undefined> {

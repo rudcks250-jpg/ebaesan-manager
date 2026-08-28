@@ -229,19 +229,23 @@ export function ScheduleGrid({
 
   return (
     <>
-      <div className="hidden md:block max-h-[calc(100vh-15rem)] overflow-auto scrollbar-thin rounded-[28px] bg-white/92 p-3 shadow-premium ring-1 ring-black/[0.035]">
-        <table className="w-full min-w-[900px] border-separate border-spacing-0">
+      <div className="hidden overflow-visible rounded-[28px] bg-white/92 p-2 shadow-premium ring-1 ring-black/[0.035] md:block lg:p-3">
+        <table className="w-full table-fixed border-separate border-spacing-0">
+          <colgroup>
+            <col className="w-[118px] xl:w-[132px]" />
+            {weekDates.map((date) => <col key={date} />)}
+          </colgroup>
           <thead>
             <tr>
-              <th className="sticky left-0 top-0 z-40 w-40 bg-white/95 px-5 py-4 text-left text-[11px] font-bold uppercase tracking-[.12em] text-ink-faint backdrop-blur-xl">
+              <th className="bg-white/95 px-2 py-3 text-left text-[10px] font-bold uppercase tracking-[.1em] text-ink-faint">
                 직원
               </th>
               {weekDates.map((date) => {
                 const parsed = parseDate(date);
                 const today = isToday(date);
                 return (
-                  <th key={date} className={`sticky top-0 z-30 min-w-[112px] px-1.5 py-2 backdrop-blur-xl ${getDayStyle(date) || 'bg-white/95'}`}>
-                    <div className={`rounded-2xl py-2.5 ${today ? 'bg-white/75 shadow-[0_1px_8px_rgba(0,122,255,.08)]' : ''}`}>
+                  <th key={date} className={`px-0.5 py-2 ${getDayStyle(date) || 'bg-white/95'}`}>
+                    <div className={`rounded-xl py-2 ${today ? 'bg-white/75 shadow-[0_1px_8px_rgba(0,122,255,.08)]' : ''}`}>
                       <div className={`text-[10px] font-bold tracking-[.12em] ${today ? 'text-brand-red' : 'text-ink-faint'}`}>
                         {WEEKDAY_LABELS[parsed.getDay()]}
                       </div>
@@ -268,21 +272,21 @@ export function ScheduleGrid({
                   onPointerMove={handleEmployeePointerMove}
                   onPointerUp={handleEmployeePointerUp}
                   onPointerCancel={cancelEmployeePointerDrag}
-                  className={`sticky left-0 z-20 h-[56px] whitespace-nowrap bg-white/95 px-4 align-middle text-[17px] font-bold backdrop-blur-xl ${
+                  className={`h-[52px] whitespace-nowrap bg-white/95 px-2 align-middle text-[14px] font-bold ${
                     index > 0 ? 'border-t border-black/[0.035]' : ''
                   } ${employee.id === currentEmployeeId ? 'text-brand-red' : 'text-ink'} ${reorderable ? 'touch-none cursor-grab select-none active:cursor-grabbing' : ''}`}
                 >
-                  <span className="flex items-center gap-2.5">
+                  <span className="flex min-w-0 items-center gap-1.5">
                     {reorderHandle(employee)}
                     <span className={`h-2.5 w-2.5 rounded-full ${getEmployeeAccent(employee.name).dot}`} />
-                    <span>{employee.name}</span>
+                    <span className="min-w-0 truncate">{employee.name}</span>
                     {employee.isSubstitute && <span className="rounded-full bg-brand-red-light px-2 py-0.5 text-[10px] font-extrabold text-brand-red">대타</span>}
                   </span>
                 </td>
                 {weekDates.map((date) => (
                   <td
                     key={date}
-                    className={`h-[56px] px-1.5 py-1 align-middle ${
+                    className={`h-[52px] px-0.5 py-0.5 align-middle ${
                       index > 0 ? 'border-t border-black/[0.035]' : ''
                     } ${getDayStyle(date)}`}
                   >
@@ -296,18 +300,18 @@ export function ScheduleGrid({
           </tbody>
           <tfoot>
             <tr>
-              <th className="sticky left-0 z-20 bg-[#F8F9FA] px-4 py-3 text-left text-xs font-semibold text-ink-soft">
+              <th className="bg-[#F8F9FA] px-2 py-3 text-left text-[11px] font-semibold text-ink-soft">
                 총 근무 인원
               </th>
               {coverage.map((item) => (
-                <td key={item.date} className="bg-[#F8F9FA] px-2 py-3 text-center text-sm font-bold text-ink">
+                <td key={item.date} className={`bg-[#F8F9FA] px-0.5 py-3 text-center text-xs font-bold ${item.total >= item.requiredTotal ? 'text-ink' : 'text-status-rejected'}`}>
                   {item.total}명
                   <span className="ml-1 text-[10px] font-medium text-ink-faint">/ {item.requiredTotal}</span>
                 </td>
               ))}
             </tr>
             <tr>
-              <th className="sticky left-0 z-20 bg-white px-4 py-3 text-left text-xs font-semibold text-ink-soft">
+              <th className="bg-white px-2 py-3 text-left text-[11px] font-semibold text-ink-soft">
                 17시 인원
               </th>
               {coverage.map((item) => (
@@ -318,24 +322,24 @@ export function ScheduleGrid({
                       / 최소 {MINIMUM_FIVE_PM_STAFF}명
                     </span>
                   </p>
-                  <p className={`mt-1 text-[10px] font-bold ${item.fiveAvailable ? 'text-status-working' : 'text-status-rejected'}`}>
-                    {item.fiveAvailable ? '✅ 가능' : '❌ 부족'}
+                  <p className={`mt-1 text-[10px] font-bold ${item.fiveAvailable ? 'text-ink-faint' : 'text-status-rejected'}`}>
+                    {item.fiveAvailable ? '충족' : '❌ 부족'}
                   </p>
                 </td>
               ))}
             </tr>
             <tr>
-              <th className="sticky left-0 z-20 bg-[#F8F9FA] px-4 py-3 text-left text-xs font-semibold text-ink-soft">
+              <th className="bg-[#F8F9FA] px-2 py-3 text-left text-[11px] font-semibold text-ink-soft">
                 상태
               </th>
               {coverage.map((item) => (
                 <td
                   key={item.date}
                   className={`bg-[#F8F9FA] px-1.5 py-3 text-center text-[11px] font-bold ${
-                    item.isNormal ? 'text-status-working' : 'text-status-rejected'
+                    item.isNormal ? 'text-ink-faint' : 'text-status-rejected'
                   }`}
                 >
-                  {item.isNormal ? '✅ 정상' : `❌ ${item.reason}`}
+                  {item.isNormal ? '정상' : `❌ ${item.reason}`}
                 </td>
               ))}
             </tr>
