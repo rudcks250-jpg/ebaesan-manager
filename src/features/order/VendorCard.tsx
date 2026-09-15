@@ -26,6 +26,7 @@ import {
   orderHistoryRepository,
   type OrderCompletion,
 } from '@/repositories/orderHistoryRepository';
+import { orderDraftRepository } from '@/repositories/orderDraftRepository';
 import type { Vendor } from '@/data/types';
 
 interface VendorCardProps {
@@ -141,7 +142,7 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [orderHistory, setOrderHistory] = useState<OrderCompletion[]>([]);
   const [selections, setSelections] = useState<ItemSelectionMap>(() =>
-    Object.fromEntries((vendor.items ?? []).map((item) => [item.id, { checked: false, qty: 1 }]))
+    orderDraftRepository.get(vendor)
   );
 
   const lastOrderText = vendorService.formatLastOrder(vendor.lastOrderAt);
@@ -188,6 +189,18 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
       cancelled = true;
     };
   }, [isSharedCompletionVendor, vendor.id]);
+
+  useEffect(() => {
+    if (vendor.type === 'quantity') {
+      orderDraftRepository.save(vendor.id, selections);
+    }
+  }, [selections, vendor.id, vendor.type]);
+
+  const clearDraft = () => {
+    if (vendor.type === 'quantity') {
+      setSelections(orderDraftRepository.clear(vendor));
+    }
+  };
 
   const toggleCheck = (itemId: string) => {
     setSelections((prev) => ({ ...prev, [itemId]: { ...prev[itemId], checked: !prev[itemId].checked } }));
@@ -313,6 +326,7 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
       await vendorService.markOrdered(vendor.id, session.employeeId, session.name);
       if (isSharedCompletionVendor) setRecentOrder(saved);
       if (isLpgVendor) setOrderHistory((history) => [saved, ...history.filter((item) => item.id !== saved.id)]);
+      clearDraft();
       showToast('발주 완료로 표시했습니다.');
       onChanged();
     } catch {
@@ -322,6 +336,7 @@ export function VendorCard({ vendor, onChanged }: VendorCardProps) {
         // 기존 거래처는 DB 마이그레이션 적용 전의 로컬 완료 동작을 유지합니다.
         await vendorService.markOrdered(vendor.id, session.employeeId, session.name);
         if (isSharedCompletionVendor) setRecentOrder(localCompletion);
+        clearDraft();
         showToast('발주 완료로 표시했습니다.');
         onChanged();
       }

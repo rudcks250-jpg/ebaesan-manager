@@ -4,6 +4,12 @@ import type { Vendor, VendorType } from '@/data/types';
 
 export type ItemSelectionMap = Record<string, { checked: boolean; qty: number }>;
 
+const BOX_ORDER_VENDOR_IDS = new Set(['vendor_liquor']);
+
+export function getOrderUnit(vendor: Vendor, itemUnit: string): string {
+  return BOX_ORDER_VENDOR_IDS.has(vendor.id) ? '박스' : itemUnit;
+}
+
 function pad2(n: number): string {
   return String(n).padStart(2, '0');
 }
@@ -84,7 +90,7 @@ export const vendorService = {
   buildQuantityMessage(vendor: Vendor, selections: ItemSelectionMap): string {
     const lines = (vendor.items ?? [])
       .filter((item) => selections[item.id]?.checked)
-      .map((item) => `${item.name} ${selections[item.id].qty}${item.unit}`);
+      .map((item) => `${item.name} ${selections[item.id].qty}${getOrderUnit(vendor, item.unit)}`);
     if (lines.length === 0) return '';
     return `안녕하세요.\n${lines.join('\n')}\n부탁드립니다.\n감사합니다.`;
   },
