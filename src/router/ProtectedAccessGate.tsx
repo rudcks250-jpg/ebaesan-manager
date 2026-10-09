@@ -2,29 +2,24 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { LockKeyhole } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/common/Button';
-import {
-  isProtectedAccessUnlocked,
-  unlockProtectedAccess,
-} from '@/utils/protectedAccess';
+import { verifyProtectedAccess } from '@/utils/protectedAccess';
 
 export function ProtectedAccessGate({ children }: { children: ReactNode }) {
   const { session } = useAuth();
   const employeeId = session?.employeeId ?? '';
-  const [unlocked, setUnlocked] = useState(() =>
-    employeeId ? isProtectedAccessUnlocked(employeeId) : false,
-  );
+  const [unlocked, setUnlocked] = useState(false);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
-    setUnlocked(employeeId ? isProtectedAccessUnlocked(employeeId) : false);
+    setUnlocked(false);
     setPassword('');
     setError('');
   }, [employeeId]);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (!employeeId || !unlockProtectedAccess(employeeId, password)) {
+    if (!employeeId || !verifyProtectedAccess(password)) {
       setError('비밀번호가 올바르지 않습니다.');
       setPassword('');
       return;
