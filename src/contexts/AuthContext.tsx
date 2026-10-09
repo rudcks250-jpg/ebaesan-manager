@@ -4,6 +4,7 @@ import { authService } from '@/services/authService';
 import { employeeRepository } from '@/repositories/employeeRepository';
 import type { AuthSession, UserRole } from '@/data/types';
 import { notificationService } from '@/services/notificationService';
+import { clearProtectedAccess } from '@/utils/protectedAccess';
 
 interface AuthContextValue {
   session: AuthSession | null;
@@ -55,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (_event, authSession) => {
       if (!authSession) {
+        clearProtectedAccess();
         setSession(null);
         setRequirePasswordChange(false);
         return;
@@ -85,12 +87,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    clearProtectedAccess(session?.employeeId);
     await notificationService.removeCurrentDevice().catch(() => undefined);
     await authService.logout();
     setSession(null);
     setRequirePasswordChange(false);
     setIsStaffPreview(false);
-  }, []);
+  }, [session?.employeeId]);
 
   const refreshSession = useCallback(async () => {
     const next = await authService.getSession();

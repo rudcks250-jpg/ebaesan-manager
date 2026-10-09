@@ -17,6 +17,7 @@ import { PrepaidManagementPage } from '@/features/prepaid/PrepaidManagementPage'
 import { ProfitLossPage } from '@/features/profitLoss/ProfitLossPage';
 import { canViewProfitLoss } from '@/utils/permission';
 import { EmployeeDiscountPage } from '@/features/discount/EmployeeDiscountPage';
+import { ProtectedAccessGate } from '@/router/ProtectedAccessGate';
 
 function TomorrowPrepRoute() {
   const { session } = useAuth();
@@ -47,7 +48,7 @@ function ProfitLossRoute() {
       </div>
     );
   }
-  return <ProfitLossPage />;
+  return <ProtectedAccessGate><ProfitLossPage /></ProtectedAccessGate>;
 }
 
 function LoginRoute() {
@@ -74,7 +75,7 @@ export function AppRouter() {
           path="/employee"
           element={
             <RequireAuth feature="employee">
-              <EmployeeListPage />
+              <ProtectedAccessGate><EmployeeListPage /></ProtectedAccessGate>
             </RequireAuth>
           }
         />
@@ -82,7 +83,7 @@ export function AppRouter() {
           path="/payroll"
           element={
             <RequireAuth feature="payroll">
-              <PayrollListPage />
+              <ProtectedAccessGate><PayrollListPage /></ProtectedAccessGate>
             </RequireAuth>
           }
         />
@@ -90,7 +91,7 @@ export function AppRouter() {
           path="/payroll/:employeeId"
           element={
             <RequireAuth feature="payroll">
-              <PayrollDetailPage />
+              <ProtectedAccessGate><PayrollDetailPage /></ProtectedAccessGate>
             </RequireAuth>
           }
         />
@@ -106,7 +107,7 @@ export function AppRouter() {
           path="/leave"
           element={
             <RequireAuth feature="leave">
-              <LeavePage />
+              <ProtectedAccessGate><LeavePage /></ProtectedAccessGate>
             </RequireAuth>
           }
         />
@@ -114,7 +115,7 @@ export function AppRouter() {
           path="/worktime"
           element={
             <RequireAuth feature="worktime">
-              <WorkTimePage />
+              <ProtectedAccessGate><WorkTimePage /></ProtectedAccessGate>
             </RequireAuth>
           }
         />
@@ -146,7 +147,7 @@ export function AppRouter() {
           path="/prepayments"
           element={
             <RequireAuth feature="prepayments">
-              <PrepaidManagementPage />
+              <ProtectedAccessGate><PrepaidManagementPage /></ProtectedAccessGate>
             </RequireAuth>
           }
         />
