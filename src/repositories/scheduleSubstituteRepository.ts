@@ -26,6 +26,11 @@ interface SubstituteShiftRow {
 const missingTable = (error: { code?: string; message?: string } | null) =>
   error?.code === '42P01' || error?.code === 'PGRST205' || error?.message?.includes('schedule_substitutes');
 
+const missingCreateFunction = (error: { code?: string; message?: string } | null) =>
+  error?.code === '42883' ||
+  error?.code === 'PGRST202' ||
+  error?.message?.includes('create_schedule_substitutes');
+
 export interface SubstituteDraftInput {
   name: string;
   memo?: string;
@@ -95,7 +100,43 @@ export const scheduleSubstituteRepository = {
       p_week_start: weekStartDate,
       p_entries: entries,
     });
-    if (error) throw error;
+    if (!error) return;
+    if (!missingCreateFunction(error)) throw error;
+
+    // 운영 DB에 테이블은 있지만 RPC 함수만 아직 없거나 PostgREST 캐시가 늦게
+    // 갱신된 경우에도 이름과 근무시간만으로 등록할 수 있도록 단순 저장합니다.
+    const actorResult = await supabase.rpc('current_employee_id');
+    if (actorResult.error || !actorResult.data) throw actorResult.error ?? error;
+    const actorId = String(actorResult.data);
+
+    for (const entry of entries) {
+      const substituteResult = await supabase
+        .from('schedule_substitutes')
+        .insert({
+          week_start_date: weekStartDate,
+          name: entry.name.trim(),
+          memo: entry.memo?.trim() || null,
+          created_by: actorId,
+        })
+        .select('id')
+        .single();
+      if (substituteResult.error) throw substituteResult.error;
+
+      const substituteId = substituteResult.data.id as string;
+      const shifts = entry.shifts.map((shift) => ({
+        substitute_id: substituteId,
+        date: shift.date,
+        status: shift.status,
+        start_time: shift.status === 'working' ? shift.startTime : null,
+        end_time: shift.status === 'working' ? shift.endTime : null,
+        updated_by: actorId,
+      }));
+      const shiftResult = await supabase.from('schedule_substitute_shifts').insert(shifts);
+      if (shiftResult.error) {
+        await supabase.from('schedule_substitutes').delete().eq('id', substituteId);
+        throw shiftResult.error;
+      }
+    }
   },
 
   async upsertShift(

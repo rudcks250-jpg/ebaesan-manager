@@ -7,9 +7,9 @@ import { scheduleService } from '@/services/scheduleService';
 import { formatMonthDay, getWeekdayLabel } from '@/utils/date';
 
 type DraftShift = { status: 'working' | 'off'; startTime: string; endTime: string };
-type Draft = { key: string; name: string; memo: string; shifts: Record<string, DraftShift | undefined> };
+type Draft = { key: string; name: string; shifts: Record<string, DraftShift | undefined> };
 
-const newDraft = (): Draft => ({ key: crypto.randomUUID(), name: '', memo: '', shifts: {} });
+const newDraft = (): Draft => ({ key: crypto.randomUUID(), name: '', shifts: {} });
 const shortTime = (time: string) => time.endsWith(':00') ? String(Number(time.slice(0, 2))) : time;
 
 export function OneTimeSubstituteSection({
@@ -65,7 +65,6 @@ export function OneTimeSubstituteSection({
     try {
       await scheduleService.createSubstitutes(weekDates[0], drafts.map((draft) => ({
         name: draft.name.trim(),
-        memo: draft.memo.trim() || undefined,
         shifts: weekDates.flatMap((date) => {
           const shift = draft.shifts[date];
           if (!shift) return [];
@@ -81,8 +80,28 @@ export function OneTimeSubstituteSection({
       onSaved();
       onClose();
     } catch (saveError) {
-      console.error('[ScheduleSubstitute] create failed', saveError);
-      showToast('대타 저장에 실패했습니다. DB 마이그레이션 적용 여부를 확인해주세요.', 'error');
+      const databaseError = saveError as { code?: string; message?: string; details?: string; hint?: string };
+      console.error('[ScheduleSubstitute] create failed', {
+        code: databaseError?.code,
+        message: databaseError?.message,
+        details: databaseError?.details,
+        hint: databaseError?.hint,
+        weekStartDate: weekDates[0],
+        entries: drafts.map((draft) => ({
+          name: draft.name.trim(),
+          shifts: weekDates.filter((date) => draft.shifts[date]).map((date) => ({
+            date,
+            ...draft.shifts[date],
+          })),
+        })),
+      });
+      const migrationMissing = databaseError?.code === '42P01' || databaseError?.code === 'PGRST205';
+      showToast(
+        migrationMissing
+          ? '대타 저장 테이블이 없습니다. DB 설정을 한 번 적용해주세요.'
+          : databaseError?.message || '대타 저장에 실패했습니다. 다시 시도해주세요.',
+        'error',
+      );
     } finally {
       setSaving(false);
     }
@@ -102,9 +121,8 @@ export function OneTimeSubstituteSection({
             <p className="flex items-center gap-2 font-bold text-ink"><UserRoundPlus size={17} className="text-brand-red" />대타 {draftIndex + 1}</p>
             {drafts.length > 1 && <button type="button" onClick={() => setDrafts((items) => items.filter((item) => item.key !== draft.key))} className="flex h-9 w-9 items-center justify-center rounded-xl bg-status-rejected-bg text-status-rejected"><Trash2 size={16} /></button>}
           </div>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            <input value={draft.name} onChange={(event) => updateDraft(draft.key, { name: event.target.value })} placeholder="대타 이름" className="min-h-12 rounded-xl bg-brand-beige-light px-4 font-semibold outline-none focus:bg-white focus:ring-2 focus:ring-brand-red/30" />
-            <input value={draft.memo} onChange={(event) => updateDraft(draft.key, { memo: event.target.value })} placeholder="메모 (예: 금·토 홀 대타)" className="min-h-12 rounded-xl bg-brand-beige-light px-4 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-brand-red/30" />
+          <div className="mt-3">
+            <input value={draft.name} onChange={(event) => updateDraft(draft.key, { name: event.target.value })} placeholder="대타 이름" className="min-h-12 w-full rounded-xl bg-brand-beige-light px-4 font-semibold outline-none focus:bg-white focus:ring-2 focus:ring-brand-red/30" />
           </div>
 
           <p className="mb-2 mt-4 text-xs font-bold text-ink-soft">근무일과 시간을 선택해주세요</p>
