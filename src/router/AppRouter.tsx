@@ -75,7 +75,7 @@ export function AppRouter() {
           path="/employee"
           element={
             <RequireAuth feature="employee">
-              <ProtectedAccessGate><EmployeeListPage /></ProtectedAccessGate>
+              <EmployeeListPage />
             </RequireAuth>
           }
         />
@@ -83,7 +83,7 @@ export function AppRouter() {
           path="/payroll"
           element={
             <RequireAuth feature="payroll">
-              <ProtectedAccessGate><PayrollListPage /></ProtectedAccessGate>
+              <PayrollListPage />
             </RequireAuth>
           }
         />
@@ -91,7 +91,7 @@ export function AppRouter() {
           path="/payroll/:employeeId"
           element={
             <RequireAuth feature="payroll">
-              <ProtectedAccessGate><PayrollDetailPage /></ProtectedAccessGate>
+              <PayrollDetailPage />
             </RequireAuth>
           }
         />
@@ -107,7 +107,7 @@ export function AppRouter() {
           path="/leave"
           element={
             <RequireAuth feature="leave">
-              <ProtectedAccessGate><LeavePage /></ProtectedAccessGate>
+              <LeavePage />
             </RequireAuth>
           }
         />
@@ -115,7 +115,7 @@ export function AppRouter() {
           path="/worktime"
           element={
             <RequireAuth feature="worktime">
-              <ProtectedAccessGate><WorkTimePage /></ProtectedAccessGate>
+              <WorkTimePage />
             </RequireAuth>
           }
         />
